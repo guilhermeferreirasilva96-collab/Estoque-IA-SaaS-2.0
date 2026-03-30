@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 import numpy as np
 import sqlite3
+import hashlib
 
 st.set_page_config(page_title="StockMind IA", layout="wide")
 
@@ -21,7 +22,11 @@ CREATE TABLE IF NOT EXISTS usuarios (
 """)
 conn.commit()
 
-# ---------------- SESSION STATE ----------------
+# ---------------- HASH SENHA ----------------
+def hash_senha(senha):
+    return hashlib.sha256(senha.encode()).hexdigest()
+
+# ---------------- SESSION ----------------
 if "logado" not in st.session_state:
     st.session_state.logado = False
 
@@ -32,7 +37,7 @@ if "empresa" not in st.session_state:
 def formatar_real(valor):
     return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-# ---------------- LOGIN UI ----------------
+# ---------------- LOGIN ----------------
 def login():
     st.markdown("""
         <style>
@@ -53,7 +58,7 @@ def login():
     if st.button("Entrar"):
         cursor.execute(
             "SELECT * FROM usuarios WHERE usuario=? AND senha=?",
-            (user, password)
+            (user, hash_senha(password))
         )
         result = cursor.fetchone()
 
@@ -64,28 +69,43 @@ def login():
         else:
             st.error("Usuário ou senha inválidos")
 
-# 👉 Se não estiver logado → só login
+# 👉 Tela de login isolada
 if not st.session_state.logado:
+    st.sidebar.empty()
+    
+    # Cadastro rápido (opcional)
+    st.markdown("### 📝 Criar conta")
+
+    empresa = st.text_input("Empresa")
+    novo_user = st.text_input("Novo usuário")
+    nova_senha = st.text_input("Nova senha", type="password")
+
+    if st.button("Cadastrar"):
+        cursor.execute(
+            "INSERT INTO usuarios (empresa, usuario, senha) VALUES (?, ?, ?)",
+            (empresa, novo_user, hash_senha(nova_senha))
+        )
+        conn.commit()
+        st.success("Usuário cadastrado! Faça login abaixo 👇")
+
+    st.divider()
     login()
     st.stop()
 
-# ---------------- SIDEBAR (SÓ APÓS LOGIN) ----------------
+# ---------------- SIDEBAR ----------------
 st.sidebar.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=100)
 st.sidebar.markdown("## StockMind IA")
 st.sidebar.caption("Gestão inteligente de estoque")
 
-# Proteção contra erro
 empresa_nome = st.session_state.get("empresa", "")
 if empresa_nome:
     st.sidebar.success(f"Empresa: {empresa_nome}")
 
-# Logout
 if st.sidebar.button("🚪 Sair"):
     st.session_state.logado = False
     st.session_state.empresa = ""
     st.rerun()
 
-# Menu
 pagina = st.sidebar.radio(
     "Menu",
     ["🏠 Visão Geral", "📦 Produtos", "💰 Financeiro", "🤖 IA"]
@@ -93,7 +113,7 @@ pagina = st.sidebar.radio(
 
 # ---------------- HEADER ----------------
 st.title("🚀 StockMind IA")
-st.markdown("### Transforme seu estoque em dinheiro com inteligência artificial")
+st.info("💡 Reduza até 20% do capital parado em estoque usando IA")
 
 # ---------------- UPLOAD ----------------
 file = st.sidebar.file_uploader("📁 Upload da planilha", type=["xlsx", "csv"])
@@ -114,14 +134,35 @@ if file:
         total = df["Valor Estoque"].sum()
         economia = total * 0.2
 
-        col1, col2, col3 = st.columns(3)
-        col1.metric("💰 Estoque Total", formatar_real(total))
-        col2.metric("📉 Economia Potencial", formatar_real(economia))
-        col3.metric("📦 Produtos", len(df))
+        giro_medio = df["Estoque Atual"].mean()
+        ruptura = len(df[df["Estoque Atual"] < giro_medio])
+        excesso = len(df[df["Estoque Atual"] > giro_medio * 1.5])
 
-        fig, ax = plt.subplots()
-        ax.bar(["Atual", "Otimizado"], [total, total * 0.8])
-        st.pyplot(fig)
+        col1, col2, col3, col4 = st.columns(4)
+
+        col1.metric("💰 Estoque Total", formatar_real(total))
+        col2.metric("📉 Economia Potencial", formatar_real(economia), "20%")
+        col3.metric("⚠️ Risco de Ruptura", ruptura)
+        col4.metric("📦 Excesso de Estoque", excesso)
+
+        if ruptura > 0:
+            st.warning(f"⚠️ {ruptura} produtos com risco de ruptura")
+
+        st.divider()
+
+        st.subheader("💰 Impacto Financeiro")
+        fig1, ax1 = plt.subplots()
+        ax1.bar(["Atual", "Otimizado"], [total, total * 0.8])
+        st.pyplot(fig1)
+
+        st.subheader("🏆 Produtos com Maior Valor em Estoque")
+        top = df.sort_values(by="Valor Estoque", ascending=False).head(5)
+        st.dataframe(top[["Produto", "Valor Estoque"]])
+
+        st.subheader("📊 Distribuição de Estoque")
+        fig2, ax2 = plt.subplots()
+        ax2.hist(df["Estoque Atual"], bins=10)
+        st.pyplot(fig2)
 
     # ================= PRODUTOS =================
     elif pagina == "📦 Produtos":
