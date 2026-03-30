@@ -8,8 +8,12 @@ import hashlib
 
 st.set_page_config(page_title="StockMind IA", layout="wide")
 
-# ---------------- CONFIGURAÇÃO ----------------
-CODIGO_MASTER = "ACESSO123"  # 🔑 ALTERE PARA SEU CÓDIGO
+# ---------------- CÓDIGOS DE CONVITE ----------------
+CODIGOS_VALIDOS = {
+    "PROF123": "Professor",
+    "TESTE1": "Teste",
+    "AMIGO1": "Amigo"
+}
 
 # ---------------- BANCO ----------------
 conn = sqlite3.connect("estoque.db", check_same_thread=False)
@@ -40,7 +44,7 @@ if "empresa" not in st.session_state:
 def formatar_real(valor):
     return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-# ---------------- TELA LOGIN ----------------
+# ---------------- LOGIN / CADASTRO ----------------
 if not st.session_state.logado:
 
     st.markdown("""
@@ -58,7 +62,7 @@ if not st.session_state.logado:
 
     col1, col2 = st.columns(2)
 
-    # ---------------- CADASTRO COM CONVITE ----------------
+    # ---------------- CADASTRO ----------------
     with col1:
         st.subheader("📝 Criar conta")
 
@@ -68,15 +72,23 @@ if not st.session_state.logado:
         codigo_convite = st.text_input("Código de convite", type="password")
 
         if st.button("Cadastrar"):
-            if codigo_convite != CODIGO_MASTER:
+            if codigo_convite not in CODIGOS_VALIDOS:
                 st.error("❌ Código de convite inválido")
+
             elif empresa and novo_user and nova_senha:
+                tipo_acesso = CODIGOS_VALIDOS[codigo_convite]
+
                 cursor.execute(
                     "INSERT INTO usuarios (empresa, usuario, senha) VALUES (?, ?, ?)",
                     (empresa, novo_user, hash_senha(nova_senha))
                 )
                 conn.commit()
-                st.success("✅ Conta criada com sucesso!")
+
+                # Remove código após uso
+                del CODIGOS_VALIDOS[codigo_convite]
+
+                st.success(f"✅ Conta criada! Tipo de acesso: {tipo_acesso}")
+
             else:
                 st.warning("Preencha todos os campos")
 
@@ -149,8 +161,7 @@ if file:
 
     else:
         st.warning("⚠️ Coluna 'Valor Unitário' não encontrada. Usando valor padrão de R$ 50.")
-        valor_unitario = 50.0
-        df["Valor Estoque"] = df["Estoque Atual"] * valor_unitario
+        df["Valor Estoque"] = df["Estoque Atual"] * 50.0
 
     # ================= VISÃO GERAL =================
     if pagina == "🏠 Visão Geral":
@@ -181,7 +192,7 @@ if file:
         ax1.bar(["Atual", "Otimizado"], [total, total * 0.8])
         st.pyplot(fig1)
 
-        st.subheader("🏆 Produtos com Maior Valor em Estoque")
+        st.subheader("🏆 Top 5 Produtos (Valor em Estoque)")
         top = df.sort_values(by="Valor Estoque", ascending=False).head(5)
         st.dataframe(top[["Produto", "Valor Estoque"]])
 
