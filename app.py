@@ -7,7 +7,7 @@ import sqlite3
 
 st.set_page_config(page_title="StockMind IA", layout="wide")
 
-# ---------------- BANCO DE DADOS ----------------
+# ---------------- BANCO ----------------
 conn = sqlite3.connect("estoque.db", check_same_thread=False)
 cursor = conn.cursor()
 
@@ -25,50 +25,24 @@ conn.commit()
 def formatar_real(valor):
     return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-# ---------------- TEMA ----------------
-tema = st.sidebar.radio("Tema", ["Claro", "Escuro"])
-
-if tema == "Escuro":
-    st.markdown("""
-    <style>
-    .main { background-color: #0E1117; color: white; }
-    .stMetric { background-color: #1C1F26; color: white; }
-    </style>
-    """, unsafe_allow_html=True)
-else:
-    st.markdown("""
-    <style>
-    .main { background-color: #F5F7FA; color: black; }
-    </style>
-    """, unsafe_allow_html=True)
-
-# ---------------- SIDEBAR BRANDING ----------------
-st.sidebar.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=100)
-st.sidebar.markdown("## StockMind IA")
-st.sidebar.caption("Gestão inteligente de estoque")
-
 # ---------------- LOGIN STATE ----------------
 if "logado" not in st.session_state:
     st.session_state.logado = False
 
-# ---------------- CADASTRO ----------------
-st.sidebar.subheader("Cadastrar Empresa")
-
-empresa = st.sidebar.text_input("Empresa")
-novo_user = st.sidebar.text_input("Novo usuário")
-nova_senha = st.sidebar.text_input("Nova senha", type="password")
-
-if st.sidebar.button("Cadastrar"):
-    cursor.execute(
-        "INSERT INTO usuarios (empresa, usuario, senha) VALUES (?, ?, ?)",
-        (empresa, novo_user, nova_senha)
-    )
-    conn.commit()
-    st.sidebar.success("Usuário cadastrado!")
-
-# ---------------- LOGIN ----------------
+# ---------------- LOGIN UI ----------------
 def login():
-    st.title("🔐 Login - StockMind IA")
+    st.markdown("""
+        <style>
+        .block-container {
+            max-width: 400px;
+            margin: auto;
+            padding-top: 100px;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("## 🔐 StockMind IA")
+    st.markdown("### Login")
 
     user = st.text_input("Usuário")
     password = st.text_input("Senha", type="password")
@@ -83,17 +57,28 @@ def login():
         if result:
             st.session_state.logado = True
             st.session_state.empresa = result[1]
+            st.rerun()
         else:
-            st.error("Login inválido")
+            st.error("Usuário ou senha inválidos")
 
+# 👉 Se não estiver logado → só mostra login
 if not st.session_state.logado:
     login()
     st.stop()
 
-# ---------------- EMPRESA LOGADA ----------------
+# ---------------- SIDEBAR (SÓ APÓS LOGIN) ----------------
+st.sidebar.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=100)
+st.sidebar.markdown("## StockMind IA")
+st.sidebar.caption("Gestão inteligente de estoque")
+
 st.sidebar.success(f"Empresa: {st.session_state.empresa}")
 
-# ---------------- MENU ----------------
+# Logout
+if st.sidebar.button("🚪 Sair"):
+    st.session_state.logado = False
+    st.rerun()
+
+# Menu
 pagina = st.sidebar.radio(
     "Menu",
     ["🏠 Visão Geral", "📦 Produtos", "💰 Financeiro", "🤖 IA"]
@@ -101,9 +86,10 @@ pagina = st.sidebar.radio(
 
 # ---------------- HEADER ----------------
 st.title("🚀 StockMind IA")
+st.markdown("### Transforme seu estoque em dinheiro com inteligência artificial")
 
 # ---------------- UPLOAD ----------------
-file = st.sidebar.file_uploader("Upload da planilha", type=["xlsx", "csv"])
+file = st.sidebar.file_uploader("📁 Upload da planilha", type=["xlsx", "csv"])
 
 if file:
     df = pd.read_csv(file) if file.name.endswith(".csv") else pd.read_excel(file)
