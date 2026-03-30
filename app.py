@@ -69,11 +69,10 @@ def login():
         else:
             st.error("Usuário ou senha inválidos")
 
-# 👉 Tela de login isolada
+# ---------------- TELA LOGIN ----------------
 if not st.session_state.logado:
     st.sidebar.empty()
-    
-    # Cadastro rápido (opcional)
+
     st.markdown("### 📝 Criar conta")
 
     empresa = st.text_input("Empresa")
@@ -120,11 +119,24 @@ file = st.sidebar.file_uploader("📁 Upload da planilha", type=["xlsx", "csv"])
 
 if file:
     df = pd.read_csv(file) if file.name.endswith(".csv") else pd.read_excel(file)
+
+    # ---------------- LIMPEZA ----------------
     df.columns = df.columns.str.strip()
     df['Produto'] = df['Produto'].astype(str).str.strip()
 
-    valor_unitario = 50.0
-    df["Valor Estoque"] = df["Estoque Atual"] * valor_unitario
+    # ---------------- VALOR ESTOQUE (PROFISSIONAL) ----------------
+    if "Valor Unitário" in df.columns:
+        df["Valor Unitário"] = pd.to_numeric(df["Valor Unitário"], errors="coerce")
+        df["Valor Estoque"] = df["Estoque Atual"] * df["Valor Unitário"]
+
+    elif "Valor Unitario" in df.columns:
+        df["Valor Unitario"] = pd.to_numeric(df["Valor Unitario"], errors="coerce")
+        df["Valor Estoque"] = df["Estoque Atual"] * df["Valor Unitario"]
+
+    else:
+        st.warning("⚠️ Coluna 'Valor Unitário' não encontrada. Usando valor padrão de R$ 50.")
+        valor_unitario = 50.0
+        df["Valor Estoque"] = df["Estoque Atual"] * valor_unitario
 
     # ================= VISÃO GERAL =================
     if pagina == "🏠 Visão Geral":
@@ -166,19 +178,13 @@ if file:
 
     # ================= PRODUTOS =================
     elif pagina == "📦 Produtos":
-
         st.subheader("📦 Análise de Produtos")
-
         produto = st.selectbox("Produto", df["Produto"].unique())
         st.dataframe(df[df["Produto"] == produto])
 
     # ================= FINANCEIRO =================
     elif pagina == "💰 Financeiro":
-
         st.subheader("💰 Financeiro")
-
-        valor_unitario = st.number_input("Valor unitário (R$)", value=50.0)
-        df["Valor Estoque"] = df["Estoque Atual"] * valor_unitario
 
         total = df["Valor Estoque"].sum()
         economia = total * 0.2
@@ -193,7 +199,6 @@ if file:
 
     # ================= IA =================
     elif pagina == "🤖 IA":
-
         st.subheader("🤖 Inteligência Artificial")
 
         produto = st.selectbox("Produto", df["Produto"].unique())
