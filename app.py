@@ -21,13 +21,16 @@ CREATE TABLE IF NOT EXISTS usuarios (
 """)
 conn.commit()
 
+# ---------------- SESSION STATE ----------------
+if "logado" not in st.session_state:
+    st.session_state.logado = False
+
+if "empresa" not in st.session_state:
+    st.session_state.empresa = ""
+
 # ---------------- FUNÇÃO MOEDA ----------------
 def formatar_real(valor):
     return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
-# ---------------- LOGIN STATE ----------------
-if "logado" not in st.session_state:
-    st.session_state.logado = False
 
 # ---------------- LOGIN UI ----------------
 def login():
@@ -61,7 +64,7 @@ def login():
         else:
             st.error("Usuário ou senha inválidos")
 
-# 👉 Se não estiver logado → só mostra login
+# 👉 Se não estiver logado → só login
 if not st.session_state.logado:
     login()
     st.stop()
@@ -71,11 +74,15 @@ st.sidebar.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", widt
 st.sidebar.markdown("## StockMind IA")
 st.sidebar.caption("Gestão inteligente de estoque")
 
-st.sidebar.success(f"Empresa: {st.session_state.empresa}")
+# Proteção contra erro
+empresa_nome = st.session_state.get("empresa", "")
+if empresa_nome:
+    st.sidebar.success(f"Empresa: {empresa_nome}")
 
 # Logout
 if st.sidebar.button("🚪 Sair"):
     st.session_state.logado = False
+    st.session_state.empresa = ""
     st.rerun()
 
 # Menu
