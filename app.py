@@ -84,11 +84,9 @@ if not st.session_state.logado:
                 )
                 conn.commit()
 
-                # Remove código após uso
                 del CODIGOS_VALIDOS[codigo_convite]
 
                 st.success(f"✅ Conta criada! Tipo de acesso: {tipo_acesso}")
-
             else:
                 st.warning("Preencha todos os campos")
 
@@ -235,12 +233,37 @@ if file:
         modelo = LinearRegression().fit(X, vendas)
 
         previsao = modelo.predict([[len(vendas)]])[0]
+        previsao_final = round(previsao)
 
-        st.metric("📈 Previsão", int(previsao))
+        media = np.mean(vendas)
+
+        col1, col2 = st.columns(2)
+        col1.metric("📈 Previsão (IA)", previsao_final)
+        col2.metric("📊 Média Histórica", round(media))
+
+        st.caption(f"Valor calculado pela IA: {previsao:.2f}")
+
+        st.markdown("### 💡 Como a IA calcula?")
+        st.info(
+            "A IA analisa a tendência das vendas dos últimos períodos. "
+            "Se as vendas estão crescendo, a previsão aumenta. "
+            "Se estão caindo, a previsão reduz."
+        )
+
+        if previsao_final > media:
+            st.success("📈 Tendência de alta nas vendas")
+        elif previsao_final < media:
+            st.warning("📉 Tendência de queda nas vendas")
+        else:
+            st.info("➡️ Vendas estáveis")
+
+        st.subheader("📊 Tendência de Vendas")
 
         fig, ax = plt.subplots()
-        ax.plot(vendas, marker='o')
-        ax.axhline(previsao, linestyle='--')
+        ax.plot(vendas, marker='o', label="Histórico")
+        ax.axhline(previsao, linestyle='--', label="Previsão IA")
+        ax.legend()
+
         st.pyplot(fig)
 
 else:
