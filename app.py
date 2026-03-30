@@ -37,58 +37,67 @@ if "empresa" not in st.session_state:
 def formatar_real(valor):
     return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-# ---------------- LOGIN ----------------
-def login():
+# ---------------- TELA LOGIN PROFISSIONAL ----------------
+if not st.session_state.logado:
+
     st.markdown("""
         <style>
         .block-container {
-            max-width: 400px;
+            max-width: 900px;
             margin: auto;
-            padding-top: 100px;
+            padding-top: 80px;
         }
         </style>
     """, unsafe_allow_html=True)
 
-    st.markdown("## 🔐 StockMind IA")
-    st.markdown("### Login")
+    st.title("🚀 StockMind IA")
+    st.markdown("### Gestão inteligente de estoque com IA")
 
-    user = st.text_input("Usuário")
-    password = st.text_input("Senha", type="password")
+    col1, col2 = st.columns(2)
 
-    if st.button("Entrar"):
-        cursor.execute(
-            "SELECT * FROM usuarios WHERE usuario=? AND senha=?",
-            (user, hash_senha(password))
-        )
-        result = cursor.fetchone()
+    # ---------------- CADASTRO ----------------
+    with col1:
+        st.subheader("📝 Criar conta")
 
-        if result:
-            st.session_state.logado = True
-            st.session_state.empresa = result[1]
-            st.rerun()
-        else:
-            st.error("Usuário ou senha inválidos")
+        empresa = st.text_input("Empresa", key="cad_empresa")
+        novo_user = st.text_input("Usuário", key="cad_user")
+        nova_senha = st.text_input("Senha", type="password", key="cad_senha")
 
-# ---------------- TELA LOGIN ----------------
-if not st.session_state.logado:
-    st.sidebar.empty()
+        if st.button("Cadastrar"):
+            if empresa and novo_user and nova_senha:
+                cursor.execute(
+                    "INSERT INTO usuarios (empresa, usuario, senha) VALUES (?, ?, ?)",
+                    (empresa, novo_user, hash_senha(nova_senha))
+                )
+                conn.commit()
+                st.success("Conta criada com sucesso!")
+            else:
+                st.warning("Preencha todos os campos")
 
-    st.markdown("### 📝 Criar conta")
+    # ---------------- LOGIN ----------------
+    with col2:
+        st.subheader("🔐 Login")
 
-    empresa = st.text_input("Empresa")
-    novo_user = st.text_input("Novo usuário")
-    nova_senha = st.text_input("Nova senha", type="password")
+        user = st.text_input("Usuário", key="login_user")
+        password = st.text_input("Senha", type="password", key="login_senha")
 
-    if st.button("Cadastrar"):
-        cursor.execute(
-            "INSERT INTO usuarios (empresa, usuario, senha) VALUES (?, ?, ?)",
-            (empresa, novo_user, hash_senha(nova_senha))
-        )
-        conn.commit()
-        st.success("Usuário cadastrado! Faça login abaixo 👇")
+        if st.button("Entrar"):
+            cursor.execute(
+                "SELECT * FROM usuarios WHERE usuario=? AND senha=?",
+                (user, hash_senha(password))
+            )
+            result = cursor.fetchone()
 
-    st.divider()
-    login()
+            if result:
+                st.session_state.logado = True
+                st.session_state.empresa = result[1]
+                st.rerun()
+            else:
+                st.error("Usuário ou senha inválidos")
+
+    st.markdown("---")
+    st.caption("© 2026 StockMind IA • Todos os direitos reservados")
+
     st.stop()
 
 # ---------------- SIDEBAR ----------------
@@ -120,11 +129,10 @@ file = st.sidebar.file_uploader("📁 Upload da planilha", type=["xlsx", "csv"])
 if file:
     df = pd.read_csv(file) if file.name.endswith(".csv") else pd.read_excel(file)
 
-    # ---------------- LIMPEZA ----------------
     df.columns = df.columns.str.strip()
     df['Produto'] = df['Produto'].astype(str).str.strip()
 
-    # ---------------- VALOR ESTOQUE (PROFISSIONAL) ----------------
+    # ---------------- VALOR ESTOQUE ----------------
     if "Valor Unitário" in df.columns:
         df["Valor Unitário"] = pd.to_numeric(df["Valor Unitário"], errors="coerce")
         df["Valor Estoque"] = df["Estoque Atual"] * df["Valor Unitário"]
