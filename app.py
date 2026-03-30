@@ -8,6 +8,9 @@ import hashlib
 
 st.set_page_config(page_title="StockMind IA", layout="wide")
 
+# ---------------- CONFIGURAÇÃO ----------------
+CODIGO_MASTER = "ACESSO123"  # 🔑 ALTERE PARA SEU CÓDIGO
+
 # ---------------- BANCO ----------------
 conn = sqlite3.connect("estoque.db", check_same_thread=False)
 cursor = conn.cursor()
@@ -37,7 +40,7 @@ if "empresa" not in st.session_state:
 def formatar_real(valor):
     return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-# ---------------- TELA LOGIN PROFISSIONAL ----------------
+# ---------------- TELA LOGIN ----------------
 if not st.session_state.logado:
 
     st.markdown("""
@@ -55,22 +58,25 @@ if not st.session_state.logado:
 
     col1, col2 = st.columns(2)
 
-    # ---------------- CADASTRO ----------------
+    # ---------------- CADASTRO COM CONVITE ----------------
     with col1:
         st.subheader("📝 Criar conta")
 
         empresa = st.text_input("Empresa", key="cad_empresa")
         novo_user = st.text_input("Usuário", key="cad_user")
         nova_senha = st.text_input("Senha", type="password", key="cad_senha")
+        codigo_convite = st.text_input("Código de convite", type="password")
 
         if st.button("Cadastrar"):
-            if empresa and novo_user and nova_senha:
+            if codigo_convite != CODIGO_MASTER:
+                st.error("❌ Código de convite inválido")
+            elif empresa and novo_user and nova_senha:
                 cursor.execute(
                     "INSERT INTO usuarios (empresa, usuario, senha) VALUES (?, ?, ?)",
                     (empresa, novo_user, hash_senha(nova_senha))
                 )
                 conn.commit()
-                st.success("Conta criada com sucesso!")
+                st.success("✅ Conta criada com sucesso!")
             else:
                 st.warning("Preencha todos os campos")
 
