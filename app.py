@@ -6,7 +6,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.linear_model import LinearRegression
 
-# ---------------- CÓDIGOS DE CONVITE ----------------
+# ---------------- CONFIG ----------------
+st.set_page_config(page_title="StockMind IA", layout="wide")
+
+# ---------------- CÓDIGOS ----------------
 CODIGOS_VALIDOS = {
     "PROF123": "Professor",
     "TESTE1": "Teste",
@@ -111,14 +114,12 @@ st.sidebar.success(f"Empresa: {st.session_state['empresa']}")
 if st.sidebar.button("🚪 Sair"):
     logout_usuario()
 
-# ADMIN RESET
 if st.session_state['usuario'] == ADMIN_USER:
     if st.sidebar.button("⚠️ Resetar usuários"):
         cursor.execute("DELETE FROM usuarios")
         conn.commit()
         st.success("Reset realizado")
 
-# ---------------- MENU (AGORA FIXO) ----------------
 pagina = st.sidebar.radio("Menu", [
     "🏠 Visão Geral",
     "📦 Produtos",
@@ -126,7 +127,6 @@ pagina = st.sidebar.radio("Menu", [
     "🤖 IA"
 ])
 
-# ---------------- UPLOAD ----------------
 file = st.sidebar.file_uploader("Upload", type=["csv", "xlsx"])
 
 df = None
@@ -134,22 +134,54 @@ df = None
 if file:
     df = pd.read_csv(file) if file.name.endswith(".csv") else pd.read_excel(file)
     df.columns = df.columns.str.strip()
+    df['Produto'] = df['Produto'].astype(str).str.strip()
 
-# ---------------- TELAS ----------------
+    if "Valor Unitário" in df.columns:
+        df["Valor Unitário"] = pd.to_numeric(df["Valor Unitário"], errors="coerce")
+        df["Valor Estoque"] = df["Estoque Atual"] * df["Valor Unitário"]
+    else:
+        df["Valor Estoque"] = df["Estoque Atual"] * 50
 
+# ================= VISÃO GERAL =================
 if pagina == "🏠 Visão Geral":
 
-    st.title("📊 Dashboard")
+    st.title("📊 Dashboard Inteligente")
 
     if df is None:
-        st.info("👈 Envie uma planilha para visualizar os dados")
+        st.info("👈 Envie uma planilha")
     else:
-        total = (df["Estoque Atual"] * 50).sum()
-        st.metric("Estoque Total", f"R$ {total:,.2f}")
+        total = df["Valor Estoque"].sum()
+        economia = total * 0.2
+        giro_medio = df["Estoque Atual"].mean()
 
+        ruptura = len(df[df["Estoque Atual"] < giro_medio])
+        excesso = len(df[df["Estoque Atual"] > giro_medio * 1.5])
+
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("💰 Estoque Total", f"R$ {total:,.2f}")
+        col2.metric("📉 Economia Potencial", f"R$ {economia:,.2f}")
+        col3.metric("⚠️ Ruptura", ruptura)
+        col4.metric("📦 Excesso", excesso)
+
+        # ALERTAS IA
+        st.subheader("🤖 Alertas Inteligentes")
+
+        for _, row in df.iterrows():
+            if row["Estoque Atual"] < giro_medio:
+                st.warning(f"{row['Produto']} → risco de ruptura")
+            elif row["Estoque Atual"] > giro_medio * 1.5:
+                st.info(f"{row['Produto']} → excesso de estoque")
+
+        # GRÁFICO
+        st.subheader("💰 Impacto Financeiro")
+        fig, ax = plt.subplots()
+        ax.bar(["Atual", "Otimizado"], [total, total * 0.8])
+        st.pyplot(fig)
+
+# ================= PRODUTOS =================
 elif pagina == "📦 Produtos":
 
-    st.title("📦 Produtos")
+    st.title("📦 Análise de Produtos")
 
     if df is None:
         st.info("Envie a planilha")
@@ -157,6 +189,7 @@ elif pagina == "📦 Produtos":
         produto = st.selectbox("Produto", df["Produto"].unique())
         st.dataframe(df[df["Produto"] == produto])
 
+# ================= FINANCEIRO =================
 elif pagina == "💰 Financeiro":
 
     st.title("💰 Financeiro")
@@ -164,21 +197,48 @@ elif pagina == "💰 Financeiro":
     if df is None:
         st.info("Envie a planilha")
     else:
-        total = df["Estoque Atual"].sum()
-        st.metric("Total", total)
+        total = df["Valor Estoque"].sum()
+        economia = total * 0.2
 
+        col1, col2 = st.columns(2)
+        col1.metric("Estoque", f"R$ {total:,.2f}")
+        col2.metric("Economia", f"R$ {economia:,.2f}")
+
+        fig, ax = plt.subplots()
+        ax.pie([total * 0.8, economia], labels=["Otimizado", "Economia"], autopct='%1.1f%%')
+        st.pyplot(fig)
+
+# ================= IA =================
 elif pagina == "🤖 IA":
 
-    st.title("🤖 IA")
+    st.title("🤖 Previsão com IA")
 
     if df is None:
         st.info("Envie a planilha")
     else:
         produto = st.selectbox("Produto", df["Produto"].unique())
-        vendas = df[df["Produto"] == produto][['Venda Mês 1','Venda Mês 2','Venda Mês 3']].values.flatten()
+
+        df_filtrado = df[df["Produto"] == produto]
+        vendas = df_filtrado[['Venda Mês 1','Venda Mês 2','Venda Mês 3']].values.flatten()
 
         X = np.array(range(len(vendas))).reshape(-1, 1)
         modelo = LinearRegression().fit(X, vendas)
         previsao = modelo.predict([[len(vendas)]])[0]
 
-        st.metric("Previsão", round(previsao))
+        media = np.mean(vendas)
+
+        col1, col2 = st.columns(2)
+        col1.metric("📈 Previsão IA", round(previsao))
+        col2.metric("📊 Média", round(media))
+
+        if previsao > media:
+            st.success("📈 Tendência de alta")
+        elif previsao < media:
+            st.warning("📉 Tendência de queda")
+        else:
+            st.info("➡️ Estável")
+
+        fig, ax = plt.subplots()
+        ax.plot(vendas, marker='o')
+        ax.axhline(previsao, linestyle='--')
+        st.pyplot(fig)
