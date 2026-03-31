@@ -31,12 +31,9 @@ def hash_senha(senha):
     return hashlib.sha256(senha.encode()).hexdigest()
 
 # ---------------- INICIALIZAÇÃO SEGURA DO SESSION_STATE ----------------
-if 'logado' not in st.session_state:
-    st.session_state['logado'] = False
-if 'empresa' not in st.session_state:
-    st.session_state['empresa'] = ""
-if 'usuario' not in st.session_state:
-    st.session_state['usuario'] = ""
+for key in ['logado', 'empresa', 'usuario']:
+    if key not in st.session_state:
+        st.session_state[key] = False if key=='logado' else ""
 
 # ---------------- LOGIN / CADASTRO ----------------
 if not st.session_state['logado']:
@@ -60,7 +57,6 @@ if not st.session_state['logado']:
         codigo_convite = st.text_input("Código de convite", type="password")
 
         if st.button("Cadastrar"):
-            # Permitir cadastro sem código apenas para "Guilherme Ferreira"
             if codigo_convite not in CODIGOS_VALIDOS and novo_user != "Guilherme Ferreira":
                 st.error("❌ Código de convite inválido")
             elif empresa and novo_user and nova_senha:
@@ -92,7 +88,6 @@ if not st.session_state['logado']:
 
             if usuario_existente:
                 if usuario_existente[3] == password_hash:
-                    # Atualiza session_state antes do rerun
                     st.session_state['logado'] = True
                     st.session_state['empresa'] = usuario_existente[1]
                     st.session_state['usuario'] = usuario_existente[2]
@@ -106,7 +101,7 @@ if not st.session_state['logado']:
     st.caption("© 2026 StockMind IA • Todos os direitos reservados")
     st.stop()
 
-# ---------------- SIDEBAR / RESET APENAS ADMIN ----------------
+# ---------------- SIDEBAR ----------------
 st.sidebar.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=100)
 st.sidebar.markdown("## StockMind IA")
 st.sidebar.caption("Gestão inteligente de estoque")
@@ -130,3 +125,114 @@ if st.sidebar.button("🚪 Sair"):
     st.session_state['empresa'] = ""
     st.session_state['usuario'] = ""
     st.experimental_rerun()
+
+# ---------------- UPLOAD ----------------
+file = st.sidebar.file_uploader("📁 Upload da planilha", type=["xlsx", "csv"])
+
+if file:
+    df = pd.read_csv(file) if file.name.endswith(".csv") else pd.read_excel(file)
+    df.columns = df.columns.str.strip()
+    df['Produto'] = df['Produto'].astype(str).str.strip()
+
+    # ---------------- VALOR ESTOQUE ----------------
+    if "Valor Unitário" in df.columns:
+        df["Valor Unitário"] = pd.to_numeric(df["Valor Unitário"], errors="coerce")
+        df["Valor Estoque"] = df["Estoque Atual"] * df["Valor Unitário"]
+    elif "Valor Unitario" in df.columns:
+        df["Valor Unitario"] = pd.to_numeric(df["Valor Unitario"], errors="coerce")
+        df["Valor Estoque"] = df["Estoque Atual"] * df["Valor Unitario"]
+    else:
+        st.warning("⚠️ Coluna 'Valor Unitário' não encontrada. Usando valor padrão de R$ 50.")
+        df["Valor Estoque"] = df["Estoque Atual"] * 50.0
+
+    # ================= VISÃO GERAL =================
+    pagina = st.sidebar.radio("Menu", ["🏠 Visão Geral", "📦 Produtos", "💰 Financeiro", "🤖 IA"])
+
+    if pagina == "🏠 Visão Geral":
+        st.subheader("📊 Dashboard Executivo")
+        total = df["Valor Estoque"].sum()
+        economia = total * 0.2
+        giro_medio = df["Estoque Atual"].mean()
+        ruptura = len(df[df["Estoque Atual"] < giro_medio])
+        excesso = len(df[df["Estoque Atual"] > giro_medio * 1.5])
+
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("💰 Estoque Total", f"R$ {total:,.2f}")
+        col2.metric("📉 Economia Potencial", f"R$ {economia:,.2f}", "20%")
+        col3.metric("⚠️ Risco de Ruptura", ruptura)
+        col4.metric("📦 Excesso de Estoque", excesso)
+
+        if ruptura > 0:
+            st.warning(f"⚠️ {ruptura} produtos com risco de ruptura")
+
+        st.divider()
+        st.subheader("💰 Impacto Financeiro")
+        fig1, ax1 = plt.subplots()
+        ax1.bar(["Atual", "Otimizado"], [total, total * 0.8])
+        st.pyplot(fig1)
+
+        st.subheader("🏆 Top 5 Produtos (Valor em Estoque)")
+        top = df.sort_values(by="Valor Estoque", ascending=False).head(5)
+        st.dataframe(top[["Produto", "Valor Estoque"]])
+
+        st.subheader("📊 Distribuição de Estoque")
+        fig2, ax2 = plt.subplots()
+        ax2.hist(df["Estoque Atual"], bins=10)
+        st.pyplot(fig2)
+
+    elif pagina == "📦 Produtos":
+        st.subheader("📦 Análise de Produtos")
+        produto = st.selectbox("Produto", df["Produto"].unique())
+        st.dataframe(df[df["Produto"] == produto])
+
+    elif pagina == "💰 Financeiro":
+        st.subheader("💰 Financeiro")
+        total = df["Valor Estoque"].sum()
+        economia = total * 0.2
+        col1, col2 = st.columns(2)
+        col1.metric("💰 Estoque Total", f"R$ {total:,.2f}")
+        col2.metric("📉 Economia", f"R$ {economia:,.2f}")
+        fig, ax = plt.subplots()
+        ax.pie([total * 0.8, economia], labels=["Otimizado", "Economia"], autopct='%1.1f%%')
+        st.pyplot(fig)
+
+    elif pagina == "🤖 IA":
+        st.subheader("🤖 Inteligência Artificial")
+        produto = st.selectbox("Produto", df["Produto"].unique())
+        df_filtrado = df[df["Produto"] == produto]
+        vendas = df_filtrado[['Venda Mês 1', 'Venda Mês 2', 'Venda Mês 3']].values.flatten()
+
+        X = np.array(range(len(vendas))).reshape(-1, 1)
+        modelo = LinearRegression().fit(X, vendas)
+        previsao = modelo.predict([[len(vendas)]])[0]
+        previsao_final = round(previsao)
+        media = np.mean(vendas)
+
+        col1, col2 = st.columns(2)
+        col1.metric("📈 Previsão (IA)", previsao_final)
+        col2.metric("📊 Média Histórica", round(media))
+        st.caption(f"Valor calculado pela IA: {previsao:.2f}")
+
+        st.markdown("### 💡 Como a IA calcula?")
+        st.info(
+            "A IA analisa a tendência das vendas dos últimos períodos. "
+            "Se as vendas estão crescendo, a previsão aumenta. "
+            "Se estão caindo, a previsão reduz."
+        )
+
+        if previsao_final > media:
+            st.success("📈 Tendência de alta nas vendas")
+        elif previsao_final < media:
+            st.warning("📉 Tendência de queda nas vendas")
+        else:
+            st.info("➡️ Vendas estáveis")
+
+        st.subheader("📊 Tendência de Vendas")
+        fig, ax = plt.subplots()
+        ax.plot(vendas, marker='o', label="Histórico")
+        ax.axhline(previsao, linestyle='--', label="Previsão IA")
+        ax.legend()
+        st.pyplot(fig)
+
+else:
+    st.info("👈 Envie a planilha para começar")
