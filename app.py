@@ -33,7 +33,7 @@ conn.commit()
 def hash_senha(senha):
     return hashlib.sha256(senha.encode()).hexdigest()
 
-# ---------------- SESSION ----------------
+# ---------------- SESSION_STATE ----------------
 if 'logado' not in st.session_state:
     st.session_state['logado'] = False
 if 'empresa' not in st.session_state:
@@ -76,7 +76,6 @@ if not st.session_state['logado']:
             if codigo_convite not in CODIGOS_VALIDOS and novo_user != "Guilherme Ferreira":
                 st.error("❌ Código de convite inválido")
             elif empresa and novo_user and nova_senha:
-                # Determina tipo de acesso
                 tipo_acesso = CODIGOS_VALIDOS[codigo_convite] if codigo_convite in CODIGOS_VALIDOS else "Admin"
                 cursor.execute(
                     "INSERT INTO usuarios (empresa, usuario, senha) VALUES (?, ?, ?)",
@@ -89,7 +88,6 @@ if not st.session_state['logado']:
             else:
                 st.warning("Preencha todos os campos")
 
-        # ---------------- RESETAR USUÁRIOS ----------------
         if st.button("⚠️ Resetar todos os usuários"):
             resetar_usuarios()
 
@@ -101,15 +99,13 @@ if not st.session_state['logado']:
 
         if st.button("Entrar"):
             user_clean = user.strip().lower()
-            password_clean = password.strip()
-            password_hash = hash_senha(password_clean)
+            password_hash = hash_senha(password.strip())
 
             cursor.execute("SELECT * FROM usuarios WHERE LOWER(usuario)=?", (user_clean,))
             usuario_existente = cursor.fetchone()
 
             if usuario_existente:
                 if usuario_existente[3] == password_hash:
-                    # Atualiza session_state antes do rerun
                     st.session_state['logado'] = True
                     st.session_state['empresa'] = usuario_existente[1]
                     st.success(f"✅ Login bem-sucedido! Bem-vindo(a) {usuario_existente[2]}")
@@ -133,8 +129,8 @@ if empresa_nome:
     st.sidebar.success(f"Empresa: {empresa_nome}")
 
 if st.sidebar.button("🚪 Sair"):
-    st.session_state.logado = False
-    st.session_state.empresa = ""
+    st.session_state['logado'] = False
+    st.session_state['empresa'] = ""
     st.experimental_rerun()
 
 pagina = st.sidebar.radio(
