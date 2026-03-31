@@ -1,3 +1,39 @@
+import streamlit as st
+import sqlite3
+import hashlib
+
+st.set_page_config(page_title="StockMind IA", layout="wide")
+
+# ---------------- CÓDIGOS DE CONVITE ----------------
+CODIGOS_VALIDOS = {
+    "PROF123": "Professor",
+    "TESTE1": "Teste",
+    "AMIGO1": "Amigo"
+}
+
+# ---------------- BANCO ----------------
+conn = sqlite3.connect("estoque.db", check_same_thread=False)
+cursor = conn.cursor()
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS usuarios (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    empresa TEXT,
+    usuario TEXT,
+    senha TEXT
+)
+""")
+conn.commit()
+
+# ---------------- HASH SENHA ----------------
+def hash_senha(senha):
+    return hashlib.sha256(senha.encode()).hexdigest()
+
+# ---------------- SESSION ----------------
+for chave, valor in {"logado": False, "empresa": ""}.items():
+    if chave not in st.session_state:
+        st.session_state[chave] = valor
+
 # ---------------- LOGIN / CADASTRO ----------------
 if not st.session_state.logado:
 
@@ -51,11 +87,11 @@ if not st.session_state.logado:
         password = st.text_input("Senha", type="password", key="login_senha")
 
         if st.button("Entrar"):
-            user_clean = user.strip().lower()  # normalize para minúsculas e remove espaços
+            user_clean = user.strip().lower()  # normaliza para minúsculas
             password_clean = password.strip()
             password_hash = hash_senha(password_clean)
 
-            # Debug
+            # Debug opcional
             st.write(f"Digitado: Usuário='{user.strip()}', Senha='{password_clean}'")
             st.write(f"Senha hash calculada: {password_hash}")
 
@@ -80,3 +116,17 @@ if not st.session_state.logado:
     st.markdown("---")
     st.caption("© 2026 StockMind IA • Todos os direitos reservados")
     st.stop()
+
+# ---------------- SIDEBAR ----------------
+st.sidebar.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=100)
+st.sidebar.markdown("## StockMind IA")
+st.sidebar.caption("Gestão inteligente de estoque")
+
+empresa_nome = st.session_state.get("empresa", "")
+if empresa_nome:
+    st.sidebar.success(f"Empresa: {empresa_nome}")
+
+if st.sidebar.button("🚪 Sair"):
+    st.session_state.logado = False
+    st.session_state.empresa = ""
+    st.rerun()
