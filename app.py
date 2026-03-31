@@ -67,8 +67,7 @@ def login_usuario():
 def logout_usuario():
     st.session_state['logado'] = False
     st.session_state['empresa'] = ""
-    st.session_state['usuario'] = ""
-    st.experimental_rerun()  # seguro aqui
+    st.session_state['usuario'] = ""  # seguro aqui
 
 # ---------------- LOGIN / CADASTRO ----------------
 if not st.session_state['logado']:
