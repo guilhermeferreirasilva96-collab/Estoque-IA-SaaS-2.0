@@ -31,7 +31,7 @@ def hash_senha(senha):
     return hashlib.sha256(senha.encode()).hexdigest()
 
 # ---------------- SESSION STATE ----------------
-for key in ['logado', 'empresa', 'usuario', 'login_user', 'login_senha', 'refresh']:
+for key in ['logado', 'empresa', 'usuario', 'login_user', 'login_senha']:
     if key not in st.session_state:
         st.session_state[key] = False if key == 'logado' else ""
 
@@ -114,7 +114,7 @@ if not st.session_state['logado']:
         if st.button("Entrar"):
             if login_usuario():
                 st.success(f"✅ Bem-vindo(a) {st.session_state['usuario']}")
-                st.session_state["refresh"] = not st.session_state["refresh"]
+                st.rerun()
 
     st.markdown("---")
     st.caption("© 2026 StockMind IA • Todos os direitos reservados")
@@ -141,7 +141,7 @@ if usuario_logado == "Guilherme Ferreira":
 # ---------------- LOGOUT ----------------
 if st.sidebar.button("🚪 Sair"):
     logout_usuario()
-    st.session_state["refresh"] = not st.session_state["refresh"]
+    st.rerun()
 
 # ---------------- UPLOAD ----------------
 file = st.sidebar.file_uploader("📁 Upload da planilha", type=["xlsx", "csv"])
@@ -155,9 +155,14 @@ if file:
     if "Valor Unitário" in df.columns:
         df["Valor Unitário"] = pd.to_numeric(df["Valor Unitário"], errors="coerce")
         df["Valor Estoque"] = df["Estoque Atual"] * df["Valor Unitário"]
+    elif "Valor Unitario" in df.columns:
+        df["Valor Unitario"] = pd.to_numeric(df["Valor Unitario"], errors="coerce")
+        df["Valor Estoque"] = df["Estoque Atual"] * df["Valor Unitario"]
     else:
+        st.warning("⚠️ Coluna 'Valor Unitário' não encontrada. Usando valor padrão de R$ 50.")
         df["Valor Estoque"] = df["Estoque Atual"] * 50.0
 
+    # ================= MENU =================
     pagina = st.sidebar.radio("Menu", ["🏠 Visão Geral", "📦 Produtos", "💰 Financeiro", "🤖 IA"])
 
     if pagina == "🏠 Visão Geral":
@@ -169,17 +174,22 @@ if file:
         col1.metric("💰 Estoque Total", f"R$ {total:,.2f}")
         col2.metric("📉 Economia", f"R$ {economia:,.2f}")
 
-    elif pagina == "🤖 IA":
-        st.subheader("🤖 Previsão de Demanda")
-
+    elif pagina == "📦 Produtos":
         produto = st.selectbox("Produto", df["Produto"].unique())
-        df_filtrado = df[df["Produto"] == produto]
+        st.dataframe(df[df["Produto"] == produto])
 
-        vendas = df_filtrado[['Venda Mês 1', 'Venda Mês 2', 'Venda Mês 3']].values.flatten()
+    elif pagina == "💰 Financeiro":
+        total = df["Valor Estoque"].sum()
+        economia = total * 0.2
+        st.metric("💰 Total", f"R$ {total:,.2f}")
+        st.metric("📉 Economia", f"R$ {economia:,.2f}")
+
+    elif pagina == "🤖 IA":
+        produto = st.selectbox("Produto", df["Produto"].unique())
+        vendas = df[df["Produto"] == produto][['Venda Mês 1', 'Venda Mês 2', 'Venda Mês 3']].values.flatten()
 
         X = np.array(range(len(vendas))).reshape(-1, 1)
         modelo = LinearRegression().fit(X, vendas)
-
         previsao = round(modelo.predict([[len(vendas)]])[0])
 
         st.metric("📈 Previsão", previsao)
