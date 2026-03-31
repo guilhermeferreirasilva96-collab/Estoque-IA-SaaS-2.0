@@ -46,7 +46,7 @@ def formatar_real(valor):
 def resetar_usuarios():
     cursor.execute("DELETE FROM usuarios")
     conn.commit()
-    st.success("✅ Todos os usuários e senhas foram resetados!")
+    st.success("✅ Todos os usuários e senhas foram resetados! Reinicie o app para cadastrar novos.")
 
 # ---------------- LOGIN / CADASTRO ----------------
 if not st.session_state.logado:
@@ -71,17 +71,18 @@ if not st.session_state.logado:
         codigo_convite = st.text_input("Código de convite", type="password")
 
         if st.button("Cadastrar"):
-            # Permitir cadastro mesmo sem código
-if codigo_convite not in CODIGOS_VALIDOS and novo_user != "Guilherme Ferreira":
-    st.error("❌ Código de convite inválido")
+            # Permite cadastro sem código apenas para Guilherme Ferreira
+            if codigo_convite not in CODIGOS_VALIDOS and novo_user != "Guilherme Ferreira":
+                st.error("❌ Código de convite inválido")
             elif empresa and novo_user and nova_senha:
-                tipo_acesso = CODIGOS_VALIDOS[codigo_convite]
+                tipo_acesso = CODIGOS_VALIDOS.get(codigo_convite, "Administrador")
                 cursor.execute(
                     "INSERT INTO usuarios (empresa, usuario, senha) VALUES (?, ?, ?)",
                     (empresa.strip(), novo_user.strip().lower(), hash_senha(nova_senha.strip()))
                 )
                 conn.commit()
-                del CODIGOS_VALIDOS[codigo_convite]
+                if codigo_convite in CODIGOS_VALIDOS:
+                    del CODIGOS_VALIDOS[codigo_convite]
                 st.success(f"✅ Conta criada! Tipo de acesso: {tipo_acesso}")
             else:
                 st.warning("Preencha todos os campos")
