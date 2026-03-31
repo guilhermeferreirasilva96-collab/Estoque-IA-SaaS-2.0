@@ -16,12 +16,14 @@ CODIGOS_VALIDOS = {
 # ---------------- BANCO ----------------
 conn = sqlite3.connect("estoque.db", check_same_thread=False)
 cursor = conn.cursor()
+
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     empresa TEXT,
     usuario TEXT,
-    senha TEXT
+    senha TEXT,
+    tipo TEXT
 )
 """)
 conn.commit()
@@ -31,7 +33,7 @@ def hash_senha(senha):
     return hashlib.sha256(senha.encode()).hexdigest()
 
 # ---------------- SESSION STATE ----------------
-for key in ['logado', 'empresa', 'usuario', 'login_user', 'login_senha']:
+for key in ['logado', 'empresa', 'usuario', 'tipo', 'login_user', 'login_senha']:
     if key not in st.session_state:
         st.session_state[key] = False if key == 'logado' else ""
 
@@ -53,6 +55,7 @@ def login_usuario():
         st.session_state['logado'] = True
         st.session_state['empresa'] = usuario_existente[1]
         st.session_state['usuario'] = usuario_existente[2]
+        st.session_state['tipo'] = usuario_existente[4]  # <-- AQUI
         return True
 
     st.error("❌ Usuário ou senha incorretos")
@@ -63,6 +66,7 @@ def logout_usuario():
     st.session_state['logado'] = False
     st.session_state['empresa'] = ""
     st.session_state['usuario'] = ""
+    st.session_state['tipo'] = ""
 
 # ---------------- LOGIN / CADASTRO ----------------
 if not st.session_state['logado']:
@@ -90,18 +94,21 @@ if not st.session_state['logado']:
             if codigo_convite not in CODIGOS_VALIDOS and novo_user != "Guilherme Ferreira":
                 st.error("❌ Código de convite inválido")
             elif empresa and novo_user and nova_senha:
-                tipo_acesso = CODIGOS_VALIDOS[codigo_convite] if codigo_convite in CODIGOS_VALIDOS else "Admin"
+
+                # ---------------- DEFINIÇÃO DE TIPO ----------------
+                tipo_acesso = "admin" if novo_user == "Guilherme Ferreira" else "usuario"
 
                 cursor.execute(
-                    "INSERT INTO usuarios (empresa, usuario, senha) VALUES (?, ?, ?)",
-                    (empresa.strip(), novo_user.strip(), hash_senha(nova_senha.strip()))
+                    "INSERT INTO usuarios (empresa, usuario, senha, tipo) VALUES (?, ?, ?, ?)",
+                    (empresa.strip(), novo_user.strip(), hash_senha(nova_senha.strip()), tipo_acesso)
                 )
                 conn.commit()
 
                 if codigo_convite in CODIGOS_VALIDOS:
                     del CODIGOS_VALIDOS[codigo_convite]
 
-                st.success(f"✅ Conta criada! Tipo de acesso: {tipo_acesso}")
+                st.success(f"✅ Conta criada! Tipo: {tipo_acesso}")
+
             else:
                 st.warning("Preencha todos os campos")
 
@@ -127,12 +134,13 @@ st.sidebar.caption("Gestão inteligente de estoque")
 
 empresa_nome = st.session_state.get("empresa", "")
 usuario_logado = st.session_state.get("usuario", "")
+tipo_usuario = st.session_state.get("tipo", "")
 
 if empresa_nome:
     st.sidebar.success(f"Empresa: {empresa_nome}")
 
-# ---------------- RESET (ADMIN) ----------------
-if usuario_logado == "Guilherme Ferreira":
+# ---------------- RESET APENAS ADMIN ----------------
+if tipo_usuario == "admin":
     if st.sidebar.button("⚠️ Resetar usuários"):
         cursor.execute("DELETE FROM usuarios")
         conn.commit()
@@ -151,28 +159,19 @@ if file:
     df.columns = df.columns.str.strip()
     df['Produto'] = df['Produto'].astype(str).str.strip()
 
-    # ---------------- VALOR ESTOQUE ----------------
     if "Valor Unitário" in df.columns:
         df["Valor Unitário"] = pd.to_numeric(df["Valor Unitário"], errors="coerce")
         df["Valor Estoque"] = df["Estoque Atual"] * df["Valor Unitário"]
-    elif "Valor Unitario" in df.columns:
-        df["Valor Unitario"] = pd.to_numeric(df["Valor Unitario"], errors="coerce")
-        df["Valor Estoque"] = df["Estoque Atual"] * df["Valor Unitario"]
     else:
-        st.warning("⚠️ Coluna 'Valor Unitário' não encontrada. Usando valor padrão de R$ 50.")
         df["Valor Estoque"] = df["Estoque Atual"] * 50.0
 
-    # ================= MENU =================
     pagina = st.sidebar.radio("Menu", ["🏠 Visão Geral", "📦 Produtos", "💰 Financeiro", "🤖 IA"])
 
     if pagina == "🏠 Visão Geral":
-        st.subheader("📊 Dashboard Executivo")
         total = df["Valor Estoque"].sum()
         economia = total * 0.2
-
-        col1, col2 = st.columns(2)
-        col1.metric("💰 Estoque Total", f"R$ {total:,.2f}")
-        col2.metric("📉 Economia", f"R$ {economia:,.2f}")
+        st.metric("💰 Estoque Total", f"R$ {total:,.2f}")
+        st.metric("📉 Economia", f"R$ {economia:,.2f}")
 
     elif pagina == "📦 Produtos":
         produto = st.selectbox("Produto", df["Produto"].unique())
