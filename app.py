@@ -1,4 +1,36 @@
-# ---------------- LOGIN / CADASTRO ----------------
+import streamlit as st
+import hashlib
+import sqlite3
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+from sklearn.linear_model import LinearRegression
+
+# ---------------- CÓDIGOS DE CONVITE ----------------
+CODIGOS_VALIDOS = {
+    "PROF123": "Professor",
+    "TESTE1": "Teste",
+    "AMIGO1": "Amigo"
+}
+
+# ---------------- BANCO ----------------
+conn = sqlite3.connect("estoque.db", check_same_thread=False)
+cursor = conn.cursor()
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS usuarios (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    empresa TEXT,
+    usuario TEXT,
+    senha TEXT
+)
+""")
+conn.commit()
+
+# ---------------- HASH SENHA ----------------
+def hash_senha(senha):
+    return hashlib.sha256(senha.encode()).hexdigest()
+
+# ---------------- INICIALIZAÇÃO SEGURA DO SESSION_STATE ----------------
 if 'logado' not in st.session_state:
     st.session_state['logado'] = False
 if 'empresa' not in st.session_state:
@@ -6,6 +38,7 @@ if 'empresa' not in st.session_state:
 if 'usuario' not in st.session_state:
     st.session_state['usuario'] = ""
 
+# ---------------- LOGIN / CADASTRO ----------------
 if not st.session_state['logado']:
     st.markdown("""
         <style>
@@ -34,7 +67,7 @@ if not st.session_state['logado']:
                 tipo_acesso = CODIGOS_VALIDOS[codigo_convite] if codigo_convite in CODIGOS_VALIDOS else "Admin"
                 cursor.execute(
                     "INSERT INTO usuarios (empresa, usuario, senha) VALUES (?, ?, ?)",
-                    (empresa.strip(), novo_user.strip(), hashlib.sha256(nova_senha.strip().encode()).hexdigest())
+                    (empresa.strip(), novo_user.strip(), hash_senha(nova_senha.strip()))
                 )
                 conn.commit()
                 if codigo_convite in CODIGOS_VALIDOS:
@@ -52,7 +85,7 @@ if not st.session_state['logado']:
         if st.button("Entrar"):
             user_clean = user.strip()
             password_clean = password.strip()
-            password_hash = hashlib.sha256(password_clean.encode()).hexdigest()
+            password_hash = hash_senha(password_clean)
 
             cursor.execute("SELECT * FROM usuarios WHERE usuario=?", (user_clean,))
             usuario_existente = cursor.fetchone()
@@ -63,7 +96,6 @@ if not st.session_state['logado']:
                     st.session_state['logado'] = True
                     st.session_state['empresa'] = usuario_existente[1]
                     st.session_state['usuario'] = usuario_existente[2]
-                    st.success(f"✅ Login bem-sucedido! Bem-vindo(a) {usuario_existente[2]}")
                     st.experimental_rerun()
                 else:
                     st.error("❌ Senha incorreta")
