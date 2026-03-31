@@ -163,7 +163,6 @@ if pagina == "🏠 Visão Geral":
         col3.metric("⚠️ Ruptura", ruptura)
         col4.metric("📦 Excesso", excesso)
 
-        # ALERTAS IA
         st.subheader("🤖 Alertas Inteligentes")
 
         for _, row in df.iterrows():
@@ -172,7 +171,6 @@ if pagina == "🏠 Visão Geral":
             elif row["Estoque Atual"] > giro_medio * 1.5:
                 st.info(f"{row['Produto']} → excesso de estoque")
 
-        # GRÁFICO
         st.subheader("💰 Impacto Financeiro")
         fig, ax = plt.subplots()
         ax.bar(["Atual", "Otimizado"], [total, total * 0.8])
@@ -238,7 +236,17 @@ elif pagina == "🤖 IA":
         else:
             st.info("➡️ Estável")
 
+        # 🔥 GRÁFICO CORRIGIDO COM LEGENDA
         fig, ax = plt.subplots()
-        ax.plot(vendas, marker='o')
-        ax.axhline(previsao, linestyle='--')
+
+        ax.plot(vendas, marker='o', label="Histórico de Vendas")
+        ax.axhline(previsao, linestyle='--', label="Previsão IA")
+
+        ax.legend()
+        ax.set_title("Tendência de Vendas")
+        ax.set_xlabel("Período")
+        ax.set_ylabel("Quantidade")
+
         st.pyplot(fig)
+
+        st.caption("Linha contínua: histórico | Linha tracejada: previsão da IA")
