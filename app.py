@@ -6,6 +6,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.linear_model import LinearRegression
 
+# ---------------- CONFIG ----------------
+st.set_page_config(page_title="StockMind IA", layout="wide")
+
 # ---------------- CÓDIGOS DE CONVITE ----------------
 CODIGOS_VALIDOS = {
     "PROF123": "Professor",
@@ -16,26 +19,24 @@ CODIGOS_VALIDOS = {
 # ---------------- BANCO ----------------
 conn = sqlite3.connect("estoque.db", check_same_thread=False)
 cursor = conn.cursor()
-
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     empresa TEXT,
     usuario TEXT,
-    senha TEXT,
-    tipo TEXT
+    senha TEXT
 )
 """)
 conn.commit()
 
-# ---------------- HASH SENHA ----------------
+# ---------------- HASH ----------------
 def hash_senha(senha):
     return hashlib.sha256(senha.encode()).hexdigest()
 
 # ---------------- SESSION STATE ----------------
-for key in ['logado', 'empresa', 'usuario', 'tipo', 'login_user', 'login_senha']:
+for key in ['logado', 'empresa', 'usuario', 'login_user', 'login_senha', 'admin']:
     if key not in st.session_state:
-        st.session_state[key] = False if key == 'logado' else ""
+        st.session_state[key] = False if key in ['logado', 'admin'] else ""
 
 # ---------------- LOGIN ----------------
 def login_usuario():
@@ -46,27 +47,36 @@ def login_usuario():
         st.warning("Preencha usuário e senha")
         return False
 
-    password_hash = hash_senha(password.strip())
+    user_clean = user.strip()
+    password_clean = password.strip()
+    password_hash = hash_senha(password_clean)
 
-    cursor.execute("SELECT * FROM usuarios WHERE usuario=?", (user.strip(),))
+    cursor.execute("SELECT * FROM usuarios WHERE usuario=?", (user_clean,))
     usuario_existente = cursor.fetchone()
 
-    if usuario_existente and usuario_existente[3] == password_hash:
-        st.session_state['logado'] = True
-        st.session_state['empresa'] = usuario_existente[1]
-        st.session_state['usuario'] = usuario_existente[2]
-        st.session_state['tipo'] = usuario_existente[4]  # <-- AQUI
-        return True
+    if usuario_existente:
+        if usuario_existente[3] == password_hash:
+            st.session_state['logado'] = True
+            st.session_state['empresa'] = usuario_existente[1]
+            st.session_state['usuario'] = usuario_existente[2]
 
-    st.error("❌ Usuário ou senha incorretos")
-    return False
+            # ADMIN
+            st.session_state['admin'] = usuario_existente[2] == "Guilherme Ferreira"
+
+            return True
+        else:
+            st.error("❌ Senha incorreta")
+            return False
+    else:
+        st.error("❌ Usuário não encontrado")
+        return False
 
 # ---------------- LOGOUT ----------------
 def logout_usuario():
     st.session_state['logado'] = False
     st.session_state['empresa'] = ""
     st.session_state['usuario'] = ""
-    st.session_state['tipo'] = ""
+    st.session_state['admin'] = False
 
 # ---------------- LOGIN / CADASTRO ----------------
 if not st.session_state['logado']:
@@ -82,7 +92,7 @@ if not st.session_state['logado']:
 
     col1, col2 = st.columns(2)
 
-    # ---------------- CADASTRO ----------------
+    # CADASTRO
     with col1:
         st.subheader("📝 Criar conta")
         empresa = st.text_input("Empresa", key="cad_empresa")
@@ -94,25 +104,16 @@ if not st.session_state['logado']:
             if codigo_convite not in CODIGOS_VALIDOS and novo_user != "Guilherme Ferreira":
                 st.error("❌ Código de convite inválido")
             elif empresa and novo_user and nova_senha:
-
-                # ---------------- DEFINIÇÃO DE TIPO ----------------
-                tipo_acesso = "admin" if novo_user == "Guilherme Ferreira" else "usuario"
-
                 cursor.execute(
-                    "INSERT INTO usuarios (empresa, usuario, senha, tipo) VALUES (?, ?, ?, ?)",
-                    (empresa.strip(), novo_user.strip(), hash_senha(nova_senha.strip()), tipo_acesso)
+                    "INSERT INTO usuarios (empresa, usuario, senha) VALUES (?, ?, ?)",
+                    (empresa.strip(), novo_user.strip(), hash_senha(nova_senha.strip()))
                 )
                 conn.commit()
-
-                if codigo_convite in CODIGOS_VALIDOS:
-                    del CODIGOS_VALIDOS[codigo_convite]
-
-                st.success(f"✅ Conta criada! Tipo: {tipo_acesso}")
-
+                st.success("✅ Conta criada com sucesso!")
             else:
                 st.warning("Preencha todos os campos")
 
-    # ---------------- LOGIN ----------------
+    # LOGIN
     with col2:
         st.subheader("🔐 Login")
         st.text_input("Usuário", key="login_user")
@@ -120,39 +121,30 @@ if not st.session_state['logado']:
 
         if st.button("Entrar"):
             if login_usuario():
-                st.success(f"✅ Bem-vindo(a) {st.session_state['usuario']}")
-                st.rerun()
+                st.success(f"✅ Bem-vindo {st.session_state['usuario']}")
 
-    st.markdown("---")
-    st.caption("© 2026 StockMind IA • Todos os direitos reservados")
     st.stop()
 
 # ---------------- SIDEBAR ----------------
 st.sidebar.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=100)
 st.sidebar.markdown("## StockMind IA")
-st.sidebar.caption("Gestão inteligente de estoque")
 
-empresa_nome = st.session_state.get("empresa", "")
-usuario_logado = st.session_state.get("usuario", "")
-tipo_usuario = st.session_state.get("tipo", "")
+if st.session_state['empresa']:
+    st.sidebar.success(f"Empresa: {st.session_state['empresa']}")
 
-if empresa_nome:
-    st.sidebar.success(f"Empresa: {empresa_nome}")
-
-# ---------------- RESET APENAS ADMIN ----------------
-if tipo_usuario == "admin":
+# ADMIN RESET
+if st.session_state.get("admin", False):
     if st.sidebar.button("⚠️ Resetar usuários"):
         cursor.execute("DELETE FROM usuarios")
         conn.commit()
-        st.success("✅ Usuários resetados!")
+        st.success("Usuários resetados")
 
-# ---------------- LOGOUT ----------------
+# LOGOUT
 if st.sidebar.button("🚪 Sair"):
     logout_usuario()
-    st.rerun()
 
 # ---------------- UPLOAD ----------------
-file = st.sidebar.file_uploader("📁 Upload da planilha", type=["xlsx", "csv"])
+file = st.sidebar.file_uploader("📁 Upload", type=["xlsx", "csv"])
 
 if file:
     df = pd.read_csv(file) if file.name.endswith(".csv") else pd.read_excel(file)
@@ -163,35 +155,27 @@ if file:
         df["Valor Unitário"] = pd.to_numeric(df["Valor Unitário"], errors="coerce")
         df["Valor Estoque"] = df["Estoque Atual"] * df["Valor Unitário"]
     else:
-        df["Valor Estoque"] = df["Estoque Atual"] * 50.0
+        df["Valor Estoque"] = df["Estoque Atual"] * 50
 
-    pagina = st.sidebar.radio("Menu", ["🏠 Visão Geral", "📦 Produtos", "💰 Financeiro", "🤖 IA"])
+    pagina = st.sidebar.radio("Menu", ["Dashboard", "Produtos", "IA"])
 
-    if pagina == "🏠 Visão Geral":
-        total = df["Valor Estoque"].sum()
-        economia = total * 0.2
-        st.metric("💰 Estoque Total", f"R$ {total:,.2f}")
-        st.metric("📉 Economia", f"R$ {economia:,.2f}")
+    if pagina == "Dashboard":
+        st.title("📊 Dashboard")
+        st.metric("Total Estoque", f"R$ {df['Valor Estoque'].sum():,.2f}")
 
-    elif pagina == "📦 Produtos":
+    elif pagina == "Produtos":
         produto = st.selectbox("Produto", df["Produto"].unique())
         st.dataframe(df[df["Produto"] == produto])
 
-    elif pagina == "💰 Financeiro":
-        total = df["Valor Estoque"].sum()
-        economia = total * 0.2
-        st.metric("💰 Total", f"R$ {total:,.2f}")
-        st.metric("📉 Economia", f"R$ {economia:,.2f}")
-
-    elif pagina == "🤖 IA":
+    elif pagina == "IA":
         produto = st.selectbox("Produto", df["Produto"].unique())
-        vendas = df[df["Produto"] == produto][['Venda Mês 1', 'Venda Mês 2', 'Venda Mês 3']].values.flatten()
+        vendas = df[df["Produto"] == produto][['Venda Mês 1','Venda Mês 2','Venda Mês 3']].values.flatten()
 
         X = np.array(range(len(vendas))).reshape(-1, 1)
         modelo = LinearRegression().fit(X, vendas)
-        previsao = round(modelo.predict([[len(vendas)]])[0])
+        previsao = int(modelo.predict([[len(vendas)]])[0])
 
-        st.metric("📈 Previsão", previsao)
+        st.metric("Previsão IA", previsao)
 
 else:
-    st.info("👈 Envie uma planilha para começar")
+    st.info("Envie uma planilha")
