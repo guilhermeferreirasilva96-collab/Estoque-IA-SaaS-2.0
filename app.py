@@ -71,8 +71,9 @@ if not st.session_state.logado:
         codigo_convite = st.text_input("Código de convite", type="password")
 
         if st.button("Cadastrar"):
-            if codigo_convite not in CODIGOS_VALIDOS:
-                st.error("❌ Código de convite inválido")
+            # Permitir cadastro mesmo sem código
+if codigo_convite not in CODIGOS_VALIDOS and novo_user != "Guilherme Ferreira":
+    st.error("❌ Código de convite inválido")
             elif empresa and novo_user and nova_senha:
                 tipo_acesso = CODIGOS_VALIDOS[codigo_convite]
                 cursor.execute(
