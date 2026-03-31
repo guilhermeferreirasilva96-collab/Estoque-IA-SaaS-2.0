@@ -31,9 +31,44 @@ def hash_senha(senha):
     return hashlib.sha256(senha.encode()).hexdigest()
 
 # ---------------- INICIALIZAÇÃO SEGURA DO SESSION_STATE ----------------
-for key in ['logado', 'empresa', 'usuario']:
+for key in ['logado', 'empresa', 'usuario', 'login_user', 'login_senha']:
     if key not in st.session_state:
         st.session_state[key] = False if key=='logado' else ""
+
+# ---------------- FUNÇÕES LOGIN/LOGOUT ----------------
+def login_usuario():
+    user = st.session_state.get("login_user", "")
+    password = st.session_state.get("login_senha", "")
+
+    if not user or not password:
+        st.warning("Preencha usuário e senha")
+        return False
+
+    user_clean = user.strip()
+    password_clean = password.strip()
+    password_hash = hash_senha(password_clean)
+
+    cursor.execute("SELECT * FROM usuarios WHERE usuario=?", (user_clean,))
+    usuario_existente = cursor.fetchone()
+
+    if usuario_existente:
+        if usuario_existente[3] == password_hash:
+            st.session_state['logado'] = True
+            st.session_state['empresa'] = usuario_existente[1]
+            st.session_state['usuario'] = usuario_existente[2]
+            return True
+        else:
+            st.error("❌ Senha incorreta")
+            return False
+    else:
+        st.error("❌ Usuário não encontrado")
+        return False
+
+def logout_usuario():
+    st.session_state['logado'] = False
+    st.session_state['empresa'] = ""
+    st.session_state['usuario'] = ""
+    st.experimental_rerun()  # seguro aqui
 
 # ---------------- LOGIN / CADASTRO ----------------
 if not st.session_state['logado']:
@@ -75,31 +110,16 @@ if not st.session_state['logado']:
     # ---------------- LOGIN ----------------
     with col2:
         st.subheader("🔐 Login")
-        user = st.text_input("Usuário", key="login_user")
-        password = st.text_input("Senha", type="password", key="login_senha")
+        st.text_input("Usuário", key="login_user")
+        st.text_input("Senha", type="password", key="login_senha")
 
         if st.button("Entrar"):
-            user_clean = user.strip()
-            password_clean = password.strip()
-            password_hash = hash_senha(password_clean)
-
-            cursor.execute("SELECT * FROM usuarios WHERE usuario=?", (user_clean,))
-            usuario_existente = cursor.fetchone()
-
-            if usuario_existente:
-                if usuario_existente[3] == password_hash:
-                    st.session_state['logado'] = True
-                    st.session_state['empresa'] = usuario_existente[1]
-                    st.session_state['usuario'] = usuario_existente[2]
-                    st.experimental_rerun()
-                else:
-                    st.error("❌ Senha incorreta")
-            else:
-                st.error("❌ Usuário não encontrado")
+            if login_usuario():
+                st.success(f"✅ Login bem-sucedido! Bem-vindo(a) {st.session_state['usuario']}")
 
     st.markdown("---")
     st.caption("© 2026 StockMind IA • Todos os direitos reservados")
-    st.stop()
+    st.stop()  # evita mostrar o resto do app sem login
 
 # ---------------- SIDEBAR ----------------
 st.sidebar.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=100)
@@ -112,19 +132,16 @@ usuario_logado = st.session_state.get("usuario", "")
 if empresa_nome:
     st.sidebar.success(f"Empresa: {empresa_nome}")
 
-# Botão de reset visível apenas para administrador
+# ---------------- RESET APENAS ADMIN ----------------
 if usuario_logado == "Guilherme Ferreira":
     if st.sidebar.button("⚠️ Resetar todos os usuários"):
         cursor.execute("DELETE FROM usuarios")
         conn.commit()
         st.success("✅ Todos os usuários e senhas foram resetados!")
 
-# Botão de logout
+# ---------------- LOGOUT ----------------
 if st.sidebar.button("🚪 Sair"):
-    st.session_state['logado'] = False
-    st.session_state['empresa'] = ""
-    st.session_state['usuario'] = ""
-    st.experimental_rerun()
+    logout_usuario()
 
 # ---------------- UPLOAD ----------------
 file = st.sidebar.file_uploader("📁 Upload da planilha", type=["xlsx", "csv"])
