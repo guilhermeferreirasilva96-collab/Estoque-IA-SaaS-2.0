@@ -154,7 +154,7 @@ if pagina == "🏠 Visão Geral":
 
     st.title("📊 Dashboard Inteligente")
 
-    if df is None:
+    if df is None or df.empty:
         st.info("👈 Envie uma planilha")
     else:
         total = df["Valor Estoque"].sum()
@@ -169,6 +169,21 @@ if pagina == "🏠 Visão Geral":
         col2.metric("📉 Economia Potencial", formatar_real(economia))
         col3.metric("⚠️ Ruptura", ruptura)
         col4.metric("📦 Excesso", excesso)
+
+        resumo = df.groupby("Produto").agg({
+            "Estoque Atual": "sum",
+            "Valor Estoque": "sum"
+        }).reset_index()
+
+        st.subheader("📊 Estoque por Produto")
+        fig1, ax1 = plt.subplots()
+        ax1.bar(resumo["Produto"], resumo["Estoque Atual"])
+        st.pyplot(fig1)
+
+        st.subheader("💰 Valor por Produto")
+        fig2, ax2 = plt.subplots()
+        ax2.bar(resumo["Produto"], resumo["Valor Estoque"])
+        st.pyplot(fig2)
 
 # ================= PRODUTOS =================
 elif pagina == "📦 Produtos":
@@ -185,16 +200,13 @@ elif pagina == "📦 Produtos":
 
         unidade = df_filtrado["Símbolo"].iloc[0] if "Símbolo" in df.columns else "un"
 
-        # 🔥 HISTÓRICO DE VENDAS
-        st.subheader("📈 Histórico de Vendas")
         vendas = df_filtrado[['Venda Mês 1','Venda Mês 2','Venda Mês 3']].values.flatten()
 
+        st.subheader("📈 Histórico de Vendas")
         fig, ax = plt.subplots()
         ax.plot(vendas, marker='o')
-        ax.set_title(f"Vendas ({unidade})")
         st.pyplot(fig)
 
-        # 🔥 COMPARAÇÃO
         st.subheader("📊 Estoque vs Média")
         estoque = df_filtrado["Estoque Atual"].values[0]
         media = np.mean(vendas)
@@ -220,7 +232,6 @@ elif pagina == "💰 Financeiro":
 
         fig, ax = plt.subplots()
         ax.bar(resumo["Produto"], resumo["Valor Estoque"])
-        ax.set_title("Valor de Estoque por Produto (R$)")
         st.pyplot(fig)
 
 # ================= IA =================
