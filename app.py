@@ -180,36 +180,6 @@ if pagina == "🏠 Visão Geral":
         ax.bar(["Atual", "Otimizado"], [total, total * 0.8])
         st.pyplot(fig)
 
-# ================= PRODUTOS =================
-elif pagina == "📦 Produtos":
-
-    st.title("📦 Análise de Produtos")
-
-    if df is None:
-        st.info("Envie a planilha")
-    else:
-        produto = st.selectbox("Produto", df["Produto"].unique())
-        st.dataframe(df[df["Produto"] == produto])
-
-# ================= FINANCEIRO =================
-elif pagina == "💰 Financeiro":
-
-    st.title("💰 Financeiro")
-
-    if df is None:
-        st.info("Envie a planilha")
-    else:
-        total = df["Valor Estoque"].sum()
-        economia = total * 0.2
-
-        col1, col2 = st.columns(2)
-        col1.metric("Estoque", formatar_real(total))
-        col2.metric("Economia", formatar_real(economia))
-
-        fig, ax = plt.subplots()
-        ax.pie([total * 0.8, economia], labels=["Otimizado", "Economia"], autopct='%1.1f%%')
-        st.pyplot(fig)
-
 # ================= IA =================
 elif pagina == "🤖 IA":
 
@@ -223,9 +193,15 @@ elif pagina == "🤖 IA":
         df_filtrado = df[df["Produto"] == produto]
         vendas = df_filtrado[['Venda Mês 1','Venda Mês 2','Venda Mês 3']].values.flatten()
 
-        # unidade dinâmica
-        if "Unidade" in df.columns:
-            unidade = df_filtrado["Unidade"].values[0]
+        # 🔥 CORREÇÃO AQUI
+        if "Símbolo" in df.columns:
+            df["Símbolo"] = df["Símbolo"].astype(str).str.strip()
+            unidade_filtrada = df.loc[df["Produto"] == produto, "Símbolo"]
+
+            if not unidade_filtrada.empty:
+                unidade = unidade_filtrada.iloc[0]
+            else:
+                unidade = "un"
         else:
             unidade = "un"
 
@@ -250,10 +226,6 @@ elif pagina == "🤖 IA":
         ax.plot(vendas, marker='o', label="Histórico de Vendas")
         ax.axhline(previsao, linestyle='--', label="Previsão IA")
         ax.legend()
-        ax.set_title("Tendência de Vendas")
-        ax.set_xlabel("Período")
-        ax.set_ylabel("Quantidade")
 
         st.pyplot(fig)
-
         st.caption("Linha contínua: histórico | Linha tracejada: previsão da IA")
