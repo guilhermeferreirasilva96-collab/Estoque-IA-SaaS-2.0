@@ -35,6 +35,10 @@ conn.commit()
 def hash_senha(senha):
     return hashlib.sha256(senha.encode()).hexdigest()
 
+# ---------------- FORMATAÇÃO REAL ----------------
+def formatar_real(valor):
+    return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
 # ---------------- SESSION ----------------
 for key in ['logado', 'empresa', 'usuario', 'login_user', 'login_senha']:
     if key not in st.session_state:
@@ -158,8 +162,8 @@ if pagina == "🏠 Visão Geral":
         excesso = len(df[df["Estoque Atual"] > giro_medio * 1.5])
 
         col1, col2, col3, col4 = st.columns(4)
-        col1.metric("💰 Estoque Total", f"R$ {total:,.2f}")
-        col2.metric("📉 Economia Potencial", f"R$ {economia:,.2f}")
+        col1.metric("💰 Estoque Total", formatar_real(total))
+        col2.metric("📉 Economia Potencial", formatar_real(economia))
         col3.metric("⚠️ Ruptura", ruptura)
         col4.metric("📦 Excesso", excesso)
 
@@ -199,8 +203,8 @@ elif pagina == "💰 Financeiro":
         economia = total * 0.2
 
         col1, col2 = st.columns(2)
-        col1.metric("Estoque", f"R$ {total:,.2f}")
-        col2.metric("Economia", f"R$ {economia:,.2f}")
+        col1.metric("Estoque", formatar_real(total))
+        col2.metric("Economia", formatar_real(economia))
 
         fig, ax = plt.subplots()
         ax.pie([total * 0.8, economia], labels=["Otimizado", "Economia"], autopct='%1.1f%%')
@@ -219,6 +223,12 @@ elif pagina == "🤖 IA":
         df_filtrado = df[df["Produto"] == produto]
         vendas = df_filtrado[['Venda Mês 1','Venda Mês 2','Venda Mês 3']].values.flatten()
 
+        # unidade dinâmica
+        if "Unidade" in df.columns:
+            unidade = df_filtrado["Unidade"].values[0]
+        else:
+            unidade = "un"
+
         X = np.array(range(len(vendas))).reshape(-1, 1)
         modelo = LinearRegression().fit(X, vendas)
         previsao = modelo.predict([[len(vendas)]])[0]
@@ -226,8 +236,8 @@ elif pagina == "🤖 IA":
         media = np.mean(vendas)
 
         col1, col2 = st.columns(2)
-        col1.metric("📈 Previsão IA", round(previsao))
-        col2.metric("📊 Média", round(media))
+        col1.metric("📈 Previsão IA", f"{round(previsao)} {unidade}")
+        col2.metric("📊 Média", f"{round(media)} {unidade}")
 
         if previsao > media:
             st.success("📈 Tendência de alta")
@@ -236,12 +246,9 @@ elif pagina == "🤖 IA":
         else:
             st.info("➡️ Estável")
 
-        # 🔥 GRÁFICO CORRIGIDO COM LEGENDA
         fig, ax = plt.subplots()
-
         ax.plot(vendas, marker='o', label="Histórico de Vendas")
         ax.axhline(previsao, linestyle='--', label="Previsão IA")
-
         ax.legend()
         ax.set_title("Tendência de Vendas")
         ax.set_xlabel("Período")
