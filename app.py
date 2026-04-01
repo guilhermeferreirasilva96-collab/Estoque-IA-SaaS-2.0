@@ -170,19 +170,6 @@ if pagina == "🏠 Visão Geral":
         col3.metric("⚠️ Ruptura", ruptura)
         col4.metric("📦 Excesso", excesso)
 
-        st.subheader("🤖 Alertas Inteligentes")
-
-        for _, row in df.iterrows():
-            if row["Estoque Atual"] < giro_medio:
-                st.warning(f"{row['Produto']} → risco de ruptura")
-            elif row["Estoque Atual"] > giro_medio * 1.5:
-                st.info(f"{row['Produto']} → excesso de estoque")
-
-        st.subheader("💰 Impacto Financeiro")
-        fig, ax = plt.subplots()
-        ax.bar(["Atual", "Otimizado"], [total, total * 0.8])
-        st.pyplot(fig)
-
 # ================= PRODUTOS =================
 elif pagina == "📦 Produtos":
 
@@ -196,10 +183,25 @@ elif pagina == "📦 Produtos":
 
         st.dataframe(df_filtrado)
 
-        st.subheader("📊 Estoque por Produto")
+        unidade = df_filtrado["Símbolo"].iloc[0] if "Símbolo" in df.columns else "un"
+
+        # 🔥 HISTÓRICO DE VENDAS
+        st.subheader("📈 Histórico de Vendas")
+        vendas = df_filtrado[['Venda Mês 1','Venda Mês 2','Venda Mês 3']].values.flatten()
+
         fig, ax = plt.subplots()
-        ax.bar(df_filtrado["Produto"], df_filtrado["Estoque Atual"])
+        ax.plot(vendas, marker='o')
+        ax.set_title(f"Vendas ({unidade})")
         st.pyplot(fig)
+
+        # 🔥 COMPARAÇÃO
+        st.subheader("📊 Estoque vs Média")
+        estoque = df_filtrado["Estoque Atual"].values[0]
+        media = np.mean(vendas)
+
+        fig2, ax2 = plt.subplots()
+        ax2.bar(["Estoque", "Média"], [estoque, media])
+        st.pyplot(fig2)
 
 # ================= FINANCEIRO =================
 elif pagina == "💰 Financeiro":
@@ -211,10 +213,14 @@ elif pagina == "💰 Financeiro":
     else:
         resumo = df.groupby("Produto")["Valor Estoque"].sum().reset_index()
 
-        st.dataframe(resumo)
+        resumo_formatado = resumo.copy()
+        resumo_formatado["Valor Estoque"] = resumo_formatado["Valor Estoque"].apply(formatar_real)
+
+        st.dataframe(resumo_formatado)
 
         fig, ax = plt.subplots()
         ax.bar(resumo["Produto"], resumo["Valor Estoque"])
+        ax.set_title("Valor de Estoque por Produto (R$)")
         st.pyplot(fig)
 
 # ================= IA =================
