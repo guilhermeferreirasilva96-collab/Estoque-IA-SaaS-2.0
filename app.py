@@ -140,6 +140,9 @@ if file:
     df.columns = df.columns.str.strip()
     df['Produto'] = df['Produto'].astype(str).str.strip()
 
+    if "Símbolo" in df.columns:
+        df["Símbolo"] = df["Símbolo"].astype(str).str.strip()
+
     if "Valor Unitário" in df.columns:
         df["Valor Unitário"] = pd.to_numeric(df["Valor Unitário"], errors="coerce")
         df["Valor Estoque"] = df["Estoque Atual"] * df["Valor Unitário"]
@@ -180,6 +183,40 @@ if pagina == "🏠 Visão Geral":
         ax.bar(["Atual", "Otimizado"], [total, total * 0.8])
         st.pyplot(fig)
 
+# ================= PRODUTOS =================
+elif pagina == "📦 Produtos":
+
+    st.title("📦 Análise de Produtos")
+
+    if df is None:
+        st.info("Envie a planilha")
+    else:
+        produto = st.selectbox("Produto", df["Produto"].unique())
+        df_filtrado = df[df["Produto"] == produto]
+
+        st.dataframe(df_filtrado)
+
+        st.subheader("📊 Estoque por Produto")
+        fig, ax = plt.subplots()
+        ax.bar(df_filtrado["Produto"], df_filtrado["Estoque Atual"])
+        st.pyplot(fig)
+
+# ================= FINANCEIRO =================
+elif pagina == "💰 Financeiro":
+
+    st.title("💰 Financeiro")
+
+    if df is None:
+        st.info("Envie a planilha")
+    else:
+        resumo = df.groupby("Produto")["Valor Estoque"].sum().reset_index()
+
+        st.dataframe(resumo)
+
+        fig, ax = plt.subplots()
+        ax.bar(resumo["Produto"], resumo["Valor Estoque"])
+        st.pyplot(fig)
+
 # ================= IA =================
 elif pagina == "🤖 IA":
 
@@ -193,17 +230,7 @@ elif pagina == "🤖 IA":
         df_filtrado = df[df["Produto"] == produto]
         vendas = df_filtrado[['Venda Mês 1','Venda Mês 2','Venda Mês 3']].values.flatten()
 
-        # 🔥 CORREÇÃO AQUI
-        if "Símbolo" in df.columns:
-            df["Símbolo"] = df["Símbolo"].astype(str).str.strip()
-            unidade_filtrada = df.loc[df["Produto"] == produto, "Símbolo"]
-
-            if not unidade_filtrada.empty:
-                unidade = unidade_filtrada.iloc[0]
-            else:
-                unidade = "un"
-        else:
-            unidade = "un"
+        unidade = df_filtrado["Símbolo"].iloc[0] if "Símbolo" in df.columns else "un"
 
         X = np.array(range(len(vendas))).reshape(-1, 1)
         modelo = LinearRegression().fit(X, vendas)
@@ -215,15 +242,8 @@ elif pagina == "🤖 IA":
         col1.metric("📈 Previsão IA", f"{round(previsao)} {unidade}")
         col2.metric("📊 Média", f"{round(media)} {unidade}")
 
-        if previsao > media:
-            st.success("📈 Tendência de alta")
-        elif previsao < media:
-            st.warning("📉 Tendência de queda")
-        else:
-            st.info("➡️ Estável")
-
         fig, ax = plt.subplots()
-        ax.plot(vendas, marker='o', label="Histórico de Vendas")
+        ax.plot(vendas, marker='o', label="Histórico")
         ax.axhline(previsao, linestyle='--', label="Previsão IA")
         ax.legend()
 
