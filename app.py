@@ -1,3 +1,4 @@
+
 import streamlit as st
 import sqlite3
 import hashlib
@@ -24,23 +25,6 @@ CREATE TABLE IF NOT EXISTS usuarios (
 )
 """)
 conn.commit()
-
-# 🔥 GARANTE USUÁRIO PADRÃO NO DEPLOY
-usuario_padrao = "guilherme ferreira"
-senha_padrao = "260518Be!"
-senha_hash = hashlib.sha256(senha_padrao.encode()).hexdigest()
-
-cursor.execute(
-    "SELECT * FROM usuarios WHERE LOWER(usuario)=?",
-    (usuario_padrao,)
-)
-
-if not cursor.fetchone():
-    cursor.execute(
-        "INSERT INTO usuarios (empresa, usuario, senha) VALUES (?, ?, ?)",
-        ("GB Multistore", usuario_padrao, senha_hash)
-    )
-    conn.commit()
 
 # ---------------- HASH SENHA ----------------
 def hash_senha(senha):
@@ -104,7 +88,7 @@ if not st.session_state.logado:
         password = st.text_input("Senha", type="password", key="login_senha")
 
         if st.button("Entrar"):
-            user_clean = user.strip().lower()
+            user_clean = user.strip().lower()  # normaliza para minúsculas
             password_clean = password.strip()
             password_hash = hash_senha(password_clean)
 
@@ -112,6 +96,7 @@ if not st.session_state.logado:
             st.write(f"Digitado: Usuário='{user.strip()}', Senha='{password_clean}'")
             st.write(f"Senha hash calculada: {password_hash}")
 
+            # Busca no banco ignorando maiúsculas/minúsculas
             cursor.execute(
                 "SELECT * FROM usuarios WHERE LOWER(usuario)=?",
                 (user_clean,)
