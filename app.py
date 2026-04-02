@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -81,7 +80,7 @@ if not st.session_state.logado:
 
                 cursor.execute(
                     "INSERT INTO usuarios (empresa, usuario, senha) VALUES (?, ?, ?)",
-                    (empresa, novo_user, hash_senha(nova_senha))
+                    (empresa.strip(), novo_user.strip(), hash_senha(nova_senha.strip()))
                 )
                 conn.commit()
 
@@ -92,27 +91,27 @@ if not st.session_state.logado:
                 st.warning("Preencha todos os campos")
 
     # ---------------- LOGIN ----------------
-with col2:
-    st.subheader("🔐 Login")
+    with col2:
+        st.subheader("🔐 Login")
 
-    user = st.text_input("Usuário", key="login_user")
-    password = st.text_input("Senha", type="password", key="login_senha")
+        user = st.text_input("Usuário", key="login_user")
+        password = st.text_input("Senha", type="password", key="login_senha")
 
-    if st.button("Entrar"):
-        senha_hash = hash_senha(password.strip())
+        if st.button("Entrar"):
+            senha_hash = hash_senha(password.strip())
 
-        cursor.execute(
-            "SELECT * FROM usuarios WHERE TRIM(usuario)=? AND senha=?",
-            (user.strip(), senha_hash)
-        )
-        result = cursor.fetchone()
+            cursor.execute(
+                "SELECT * FROM usuarios WHERE TRIM(usuario)=? AND senha=?",
+                (user.strip(), senha_hash)
+            )
+            result = cursor.fetchone()
 
-        if result:
-            st.session_state.logado = True
-            st.session_state.empresa = result[1]
-            st.rerun()
-        else:
-            st.error("Usuário ou senha inválidos")
+            if result:
+                st.session_state.logado = True
+                st.session_state.empresa = result[1]
+                st.rerun()
+            else:
+                st.error("Usuário ou senha inválidos")
 
     st.markdown("---")
     st.caption("© 2026 StockMind IA • Todos os direitos reservados")
@@ -151,7 +150,6 @@ if file:
     df.columns = df.columns.str.strip()
     df['Produto'] = df['Produto'].astype(str).str.strip()
 
-    # ---------------- VALOR ESTOQUE ----------------
     if "Valor Unitário" in df.columns:
         df["Valor Unitário"] = pd.to_numeric(df["Valor Unitário"], errors="coerce")
         df["Valor Estoque"] = df["Estoque Atual"] * df["Valor Unitário"]
@@ -164,7 +162,6 @@ if file:
         st.warning("⚠️ Coluna 'Valor Unitário' não encontrada. Usando valor padrão de R$ 50.")
         df["Valor Estoque"] = df["Estoque Atual"] * 50.0
 
-    # ================= VISÃO GERAL =================
     if pagina == "🏠 Visão Geral":
 
         st.subheader("📊 Dashboard Executivo")
@@ -202,13 +199,11 @@ if file:
         ax2.hist(df["Estoque Atual"], bins=10)
         st.pyplot(fig2)
 
-    # ================= PRODUTOS =================
     elif pagina == "📦 Produtos":
         st.subheader("📦 Análise de Produtos")
         produto = st.selectbox("Produto", df["Produto"].unique())
         st.dataframe(df[df["Produto"] == produto])
 
-    # ================= FINANCEIRO =================
     elif pagina == "💰 Financeiro":
         st.subheader("💰 Financeiro")
 
@@ -223,7 +218,6 @@ if file:
         ax.pie([total * 0.8, economia], labels=["Otimizado", "Economia"], autopct='%1.1f%%')
         st.pyplot(fig)
 
-    # ================= IA =================
     elif pagina == "🤖 IA":
         st.subheader("🤖 Inteligência Artificial")
 
@@ -246,28 +240,12 @@ if file:
 
         st.caption(f"Valor calculado pela IA: {previsao:.2f}")
 
-        st.markdown("### 💡 Como a IA calcula?")
-        st.info(
-            "A IA analisa a tendência das vendas dos últimos períodos. "
-            "Se as vendas estão crescendo, a previsão aumenta. "
-            "Se estão caindo, a previsão reduz."
-        )
-
         if previsao_final > media:
             st.success("📈 Tendência de alta nas vendas")
         elif previsao_final < media:
             st.warning("📉 Tendência de queda nas vendas")
         else:
             st.info("➡️ Vendas estáveis")
-
-        st.subheader("📊 Tendência de Vendas")
-
-        fig, ax = plt.subplots()
-        ax.plot(vendas, marker='o', label="Histórico")
-        ax.axhline(previsao, linestyle='--', label="Previsão IA")
-        ax.legend()
-
-        st.pyplot(fig)
 
 else:
     st.info("👈 Envie a planilha para começar")
