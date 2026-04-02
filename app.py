@@ -1,26 +1,24 @@
 import streamlit as st
-import hashlib
-import sqlite3
 import pandas as pd
 import matplotlib.pyplot as plt
-import numpy as np
 from sklearn.linear_model import LinearRegression
+import numpy as np
+import sqlite3
+import hashlib
 
-# ---------------- CONFIG ----------------
 st.set_page_config(page_title="StockMind IA", layout="wide")
 
-# ---------------- CÓDIGOS ----------------
+# ---------------- CÓDIGOS DE CONVITE ----------------
 CODIGOS_VALIDOS = {
     "PROF123": "Professor",
     "TESTE1": "Teste",
     "AMIGO1": "Amigo"
 }
 
-ADMIN_USER = "Guilherme Ferreira"
-
 # ---------------- BANCO ----------------
 conn = sqlite3.connect("estoque.db", check_same_thread=False)
 cursor = conn.cursor()
+
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -31,233 +29,235 @@ CREATE TABLE IF NOT EXISTS usuarios (
 """)
 conn.commit()
 
-# ---------------- HASH ----------------
+# ---------------- HASH SENHA ----------------
 def hash_senha(senha):
     return hashlib.sha256(senha.encode()).hexdigest()
 
-# ---------------- FORMATAÇÃO REAL ----------------
+# ---------------- SESSION ----------------
+if "logado" not in st.session_state:
+    st.session_state.logado = False
+
+if "empresa" not in st.session_state:
+    st.session_state.empresa = ""
+
+# ---------------- FUNÇÃO MOEDA ----------------
 def formatar_real(valor):
     return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-# ---------------- SESSION ----------------
-for key in ['logado', 'empresa', 'usuario', 'login_user', 'login_senha']:
-    if key not in st.session_state:
-        st.session_state[key] = False if key == 'logado' else ""
+# ---------------- LOGIN / CADASTRO ----------------
+if not st.session_state.logado:
 
-# ---------------- LOGIN ----------------
-def login_usuario():
-    user = st.session_state["login_user"].strip()
-    password = st.session_state["login_senha"].strip()
-
-    if not user or not password:
-        st.warning("Preencha usuário e senha")
-        return
-
-    password_hash = hash_senha(password)
-
-    cursor.execute("SELECT * FROM usuarios WHERE usuario=?", (user,))
-    usuario_existente = cursor.fetchone()
-
-    if usuario_existente and usuario_existente[3] == password_hash:
-        st.session_state['logado'] = True
-        st.session_state['empresa'] = usuario_existente[1]
-        st.session_state['usuario'] = usuario_existente[2]
-        st.rerun()
-    else:
-        st.error("❌ Usuário ou senha inválidos")
-
-# ---------------- LOGOUT ----------------
-def logout_usuario():
-    st.session_state['logado'] = False
-    st.session_state['empresa'] = ""
-    st.session_state['usuario'] = ""
-    st.rerun()
-
-# ---------------- LOGIN SCREEN ----------------
-if not st.session_state['logado']:
+    st.markdown("""
+        <style>
+        .block-container {
+            max-width: 900px;
+            margin: auto;
+            padding-top: 80px;
+        }
+        </style>
+    """, unsafe_allow_html=True)
 
     st.title("🚀 StockMind IA")
     st.markdown("### Gestão inteligente de estoque com IA")
 
     col1, col2 = st.columns(2)
 
+    # ---------------- CADASTRO ----------------
     with col1:
         st.subheader("📝 Criar conta")
-        empresa = st.text_input("Empresa")
-        novo_user = st.text_input("Usuário")
-        nova_senha = st.text_input("Senha", type="password")
-        codigo_convite = st.text_input("Código de convite")
+
+        empresa = st.text_input("Empresa", key="cad_empresa")
+        novo_user = st.text_input("Usuário", key="cad_user")
+        nova_senha = st.text_input("Senha", type="password", key="cad_senha")
+        codigo_convite = st.text_input("Código de convite", type="password")
 
         if st.button("Cadastrar"):
-            if codigo_convite not in CODIGOS_VALIDOS and novo_user != ADMIN_USER:
-                st.error("❌ Código inválido")
+            if codigo_convite not in CODIGOS_VALIDOS:
+                st.error("❌ Código de convite inválido")
+
             elif empresa and novo_user and nova_senha:
+                tipo_acesso = CODIGOS_VALIDOS[codigo_convite]
+
                 cursor.execute(
                     "INSERT INTO usuarios (empresa, usuario, senha) VALUES (?, ?, ?)",
                     (empresa, novo_user, hash_senha(nova_senha))
                 )
                 conn.commit()
-                st.success("✅ Conta criada!")
+
+                del CODIGOS_VALIDOS[codigo_convite]
+
+                st.success(f"✅ Conta criada! Tipo de acesso: {tipo_acesso}")
             else:
                 st.warning("Preencha todos os campos")
 
+    # ---------------- LOGIN ----------------
     with col2:
         st.subheader("🔐 Login")
-        st.text_input("Usuário", key="login_user")
-        st.text_input("Senha", type="password", key="login_senha")
+
+        user = st.text_input("Usuário", key="login_user")
+        password = st.text_input("Senha", type="password", key="login_senha")
 
         if st.button("Entrar"):
-            login_usuario()
+            cursor.execute(
+                "SELECT * FROM usuarios WHERE usuario=? AND senha=?",
+                (user, hash_senha(password))
+            )
+            result = cursor.fetchone()
+
+            if result:
+                st.session_state.logado = True
+                st.session_state.empresa = result[1]
+                st.rerun()
+            else:
+                st.error("Usuário ou senha inválidos")
+
+    st.markdown("---")
+    st.caption("© 2026 StockMind IA • Todos os direitos reservados")
 
     st.stop()
 
 # ---------------- SIDEBAR ----------------
-st.sidebar.title("📊 StockMind IA")
-st.sidebar.success(f"Empresa: {st.session_state['empresa']}")
+st.sidebar.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=100)
+st.sidebar.markdown("## StockMind IA")
+st.sidebar.caption("Gestão inteligente de estoque")
+
+empresa_nome = st.session_state.get("empresa", "")
+if empresa_nome:
+    st.sidebar.success(f"Empresa: {empresa_nome}")
 
 if st.sidebar.button("🚪 Sair"):
-    logout_usuario()
+    st.session_state.logado = False
+    st.session_state.empresa = ""
+    st.rerun()
 
-if st.session_state['usuario'] == ADMIN_USER:
-    if st.sidebar.button("⚠️ Resetar usuários"):
-        cursor.execute("DELETE FROM usuarios")
-        conn.commit()
-        st.success("Reset realizado")
+pagina = st.sidebar.radio(
+    "Menu",
+    ["🏠 Visão Geral", "📦 Produtos", "💰 Financeiro", "🤖 IA"]
+)
 
-pagina = st.sidebar.radio("Menu", [
-    "🏠 Visão Geral",
-    "📦 Produtos",
-    "💰 Financeiro",
-    "🤖 IA"
-])
+# ---------------- HEADER ----------------
+st.title("🚀 StockMind IA")
+st.info("💡 Reduza até 20% do capital parado em estoque usando IA")
 
-file = st.sidebar.file_uploader("Upload", type=["csv", "xlsx"])
-
-df = None
+# ---------------- UPLOAD ----------------
+file = st.sidebar.file_uploader("📁 Upload da planilha", type=["xlsx", "csv"])
 
 if file:
     df = pd.read_csv(file) if file.name.endswith(".csv") else pd.read_excel(file)
+
     df.columns = df.columns.str.strip()
     df['Produto'] = df['Produto'].astype(str).str.strip()
 
-    if "Símbolo" in df.columns:
-        df["Símbolo"] = df["Símbolo"].astype(str).str.strip()
-
+    # ---------------- VALOR ESTOQUE ----------------
     if "Valor Unitário" in df.columns:
         df["Valor Unitário"] = pd.to_numeric(df["Valor Unitário"], errors="coerce")
         df["Valor Estoque"] = df["Estoque Atual"] * df["Valor Unitário"]
+
+    elif "Valor Unitario" in df.columns:
+        df["Valor Unitario"] = pd.to_numeric(df["Valor Unitario"], errors="coerce")
+        df["Valor Estoque"] = df["Estoque Atual"] * df["Valor Unitario"]
+
     else:
-        df["Valor Estoque"] = df["Estoque Atual"] * 50
+        st.warning("⚠️ Coluna 'Valor Unitário' não encontrada. Usando valor padrão de R$ 50.")
+        df["Valor Estoque"] = df["Estoque Atual"] * 50.0
 
-# ================= VISÃO GERAL =================
-if pagina == "🏠 Visão Geral":
+    # ================= VISÃO GERAL =================
+    if pagina == "🏠 Visão Geral":
 
-    st.title("📊 Dashboard Inteligente")
+        st.subheader("📊 Dashboard Executivo")
 
-    if df is None or df.empty:
-        st.info("👈 Envie uma planilha")
-    else:
         total = df["Valor Estoque"].sum()
         economia = total * 0.2
-        giro_medio = df["Estoque Atual"].mean()
 
+        giro_medio = df["Estoque Atual"].mean()
         ruptura = len(df[df["Estoque Atual"] < giro_medio])
         excesso = len(df[df["Estoque Atual"] > giro_medio * 1.5])
 
         col1, col2, col3, col4 = st.columns(4)
+
         col1.metric("💰 Estoque Total", formatar_real(total))
-        col2.metric("📉 Economia Potencial", formatar_real(economia))
-        col3.metric("⚠️ Ruptura", ruptura)
-        col4.metric("📦 Excesso", excesso)
+        col2.metric("📉 Economia Potencial", formatar_real(economia), "20%")
+        col3.metric("⚠️ Risco de Ruptura", ruptura)
+        col4.metric("📦 Excesso de Estoque", excesso)
 
-        resumo = df.groupby("Produto").agg({
-            "Estoque Atual": "sum",
-            "Valor Estoque": "sum"
-        }).reset_index()
+        if ruptura > 0:
+            st.warning(f"⚠️ {ruptura} produtos com risco de ruptura")
 
-        st.subheader("📊 Estoque por Produto")
+        st.divider()
+
+        st.subheader("💰 Impacto Financeiro")
         fig1, ax1 = plt.subplots()
-        ax1.bar(resumo["Produto"], resumo["Estoque Atual"])
+        ax1.bar(["Atual", "Otimizado"], [total, total * 0.8])
         st.pyplot(fig1)
 
-        st.subheader("💰 Valor por Produto")
+        st.subheader("🏆 Top 5 Produtos (Valor em Estoque)")
+        top = df.sort_values(by="Valor Estoque", ascending=False).head(5)
+        st.dataframe(top[["Produto", "Valor Estoque"]])
+
+        st.subheader("📊 Distribuição de Estoque")
         fig2, ax2 = plt.subplots()
-        ax2.bar(resumo["Produto"], resumo["Valor Estoque"])
+        ax2.hist(df["Estoque Atual"], bins=10)
         st.pyplot(fig2)
 
-# ================= PRODUTOS =================
-elif pagina == "📦 Produtos":
+    # ================= PRODUTOS =================
+    elif pagina == "📦 Produtos":
+        st.subheader("📦 Análise de Produtos")
+        produto = st.selectbox("Produto", df["Produto"].unique())
+        st.dataframe(df[df["Produto"] == produto])
 
-    st.title("📦 Análise de Produtos")
+    # ================= FINANCEIRO =================
+    elif pagina == "💰 Financeiro":
+        st.subheader("💰 Financeiro")
 
-    if df is None:
-        st.info("Envie a planilha")
-    else:
+        total = df["Valor Estoque"].sum()
+        economia = total * 0.2
+
+        col1, col2 = st.columns(2)
+        col1.metric("💰 Estoque Total", formatar_real(total))
+        col2.metric("📉 Economia", formatar_real(economia))
+
+        fig, ax = plt.subplots()
+        ax.pie([total * 0.8, economia], labels=["Otimizado", "Economia"], autopct='%1.1f%%')
+        st.pyplot(fig)
+
+    # ================= IA =================
+    elif pagina == "🤖 IA":
+        st.subheader("🤖 Inteligência Artificial")
+
         produto = st.selectbox("Produto", df["Produto"].unique())
         df_filtrado = df[df["Produto"] == produto]
 
-        st.dataframe(df_filtrado)
-
-        unidade = df_filtrado["Símbolo"].iloc[0] if "Símbolo" in df.columns else "un"
-
-        vendas = df_filtrado[['Venda Mês 1','Venda Mês 2','Venda Mês 3']].values.flatten()
-
-        st.subheader("📈 Histórico de Vendas")
-        fig, ax = plt.subplots()
-        ax.plot(vendas, marker='o')
-        st.pyplot(fig)
-
-        st.subheader("📊 Estoque vs Média")
-        estoque = df_filtrado["Estoque Atual"].values[0]
-        media = np.mean(vendas)
-
-        fig2, ax2 = plt.subplots()
-        ax2.bar(["Estoque", "Média"], [estoque, media])
-        st.pyplot(fig2)
-
-# ================= FINANCEIRO =================
-elif pagina == "💰 Financeiro":
-
-    st.title("💰 Financeiro")
-
-    if df is None:
-        st.info("Envie a planilha")
-    else:
-        resumo = df.groupby("Produto")["Valor Estoque"].sum().reset_index()
-
-        resumo_formatado = resumo.copy()
-        resumo_formatado["Valor Estoque"] = resumo_formatado["Valor Estoque"].apply(formatar_real)
-
-        st.dataframe(resumo_formatado)
-
-        fig, ax = plt.subplots()
-        ax.bar(resumo["Produto"], resumo["Valor Estoque"])
-        st.pyplot(fig)
-
-# ================= IA =================
-elif pagina == "🤖 IA":
-
-    st.title("🤖 Previsão com IA")
-
-    if df is None:
-        st.info("Envie a planilha")
-    else:
-        produto = st.selectbox("Produto", df["Produto"].unique())
-
-        df_filtrado = df[df["Produto"] == produto]
-        vendas = df_filtrado[['Venda Mês 1','Venda Mês 2','Venda Mês 3']].values.flatten()
-
-        unidade = df_filtrado["Símbolo"].iloc[0] if "Símbolo" in df.columns else "un"
+        vendas = df_filtrado[['Venda Mês 1', 'Venda Mês 2', 'Venda Mês 3']].values.flatten()
 
         X = np.array(range(len(vendas))).reshape(-1, 1)
         modelo = LinearRegression().fit(X, vendas)
+
         previsao = modelo.predict([[len(vendas)]])[0]
+        previsao_final = round(previsao)
 
         media = np.mean(vendas)
 
         col1, col2 = st.columns(2)
-        col1.metric("📈 Previsão IA", f"{round(previsao)} {unidade}")
-        col2.metric("📊 Média", f"{round(media)} {unidade}")
+        col1.metric("📈 Previsão (IA)", previsao_final)
+        col2.metric("📊 Média Histórica", round(media))
+
+        st.caption(f"Valor calculado pela IA: {previsao:.2f}")
+
+        st.markdown("### 💡 Como a IA calcula?")
+        st.info(
+            "A IA analisa a tendência das vendas dos últimos períodos. "
+            "Se as vendas estão crescendo, a previsão aumenta. "
+            "Se estão caindo, a previsão reduz."
+        )
+
+        if previsao_final > media:
+            st.success("📈 Tendência de alta nas vendas")
+        elif previsao_final < media:
+            st.warning("📉 Tendência de queda nas vendas")
+        else:
+            st.info("➡️ Vendas estáveis")
+
+        st.subheader("📊 Tendência de Vendas")
 
         fig, ax = plt.subplots()
         ax.plot(vendas, marker='o', label="Histórico")
@@ -265,4 +265,6 @@ elif pagina == "🤖 IA":
         ax.legend()
 
         st.pyplot(fig)
-        st.caption("Linha contínua: histórico | Linha tracejada: previsão da IA")
+
+else:
+    st.info("👈 Envie a planilha para começar")
