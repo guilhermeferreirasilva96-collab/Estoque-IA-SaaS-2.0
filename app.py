@@ -15,19 +15,38 @@ CODIGOS_VALIDOS = {
 conn = sqlite3.connect("estoque.db", check_same_thread=False)
 cursor = conn.cursor()
 
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS usuarios (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    empresa TEXT,
-    usuario TEXT,
-    senha TEXT
-)
-""")
-conn.commit()
-
-# ---------------- HASH SENHA ----------------
 def hash_senha(senha):
     return hashlib.sha256(senha.encode()).hexdigest()
+
+def inicializar_banco():
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS usuarios (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        empresa TEXT,
+        usuario TEXT UNIQUE,
+        senha TEXT
+    )
+    """)
+
+    # 🔥 Usuário padrão (resolve o problema no deploy)
+    usuario_padrao = "guilherme ferreira"
+    senha_padrao = "260518Be!"
+    senha_hash = hash_senha(senha_padrao)
+
+    cursor.execute(
+        "SELECT * FROM usuarios WHERE LOWER(usuario)=?",
+        (usuario_padrao,)
+    )
+
+    if not cursor.fetchone():
+        cursor.execute(
+            "INSERT INTO usuarios (empresa, usuario, senha) VALUES (?, ?, ?)",
+            ("GB Multistore", usuario_padrao, senha_hash)
+        )
+        conn.commit()
+
+# CHAMAR AO INICIAR
+inicializar_banco()
 
 # ---------------- SESSION ----------------
 for chave, valor in {"logado": False, "empresa": ""}.items():
@@ -65,17 +84,26 @@ if not st.session_state.logado:
             if codigo_convite not in CODIGOS_VALIDOS:
                 st.error("❌ Código de convite inválido")
             elif empresa and novo_user and nova_senha:
-                tipo_acesso = CODIGOS_VALIDOS[codigo_convite]
 
-                cursor.execute(
-                    "INSERT INTO usuarios (empresa, usuario, senha) VALUES (?, ?, ?)",
-                    (empresa.strip(), novo_user.strip(), hash_senha(nova_senha.strip()))
-                )
-                conn.commit()
+                try:
+                    cursor.execute(
+                        "INSERT INTO usuarios (empresa, usuario, senha) VALUES (?, ?, ?)",
+                        (
+                            empresa.strip(),
+                            novo_user.strip().lower(),  # 🔥 padronização
+                            hash_senha(nova_senha.strip())
+                        )
+                    )
+                    conn.commit()
 
-                del CODIGOS_VALIDOS[codigo_convite]
+                    tipo_acesso = CODIGOS_VALIDOS[codigo_convite]
+                    del CODIGOS_VALIDOS[codigo_convite]
 
-                st.success(f"✅ Conta criada! Tipo de acesso: {tipo_acesso}")
+                    st.success(f"✅ Conta criada! Tipo de acesso: {tipo_acesso}")
+
+                except sqlite3.IntegrityError:
+                    st.error("❌ Usuário já existe")
+
             else:
                 st.warning("Preencha todos os campos")
 
@@ -87,15 +115,9 @@ if not st.session_state.logado:
         password = st.text_input("Senha", type="password", key="login_senha")
 
         if st.button("Entrar"):
-            user_clean = user.strip().lower()  # normaliza para minúsculas
-            password_clean = password.strip()
-            password_hash = hash_senha(password_clean)
+            user_clean = user.strip().lower()
+            password_hash = hash_senha(password.strip())
 
-            # Debug opcional
-            st.write(f"Digitado: Usuário='{user.strip()}', Senha='{password_clean}'")
-            st.write(f"Senha hash calculada: {password_hash}")
-
-            # Busca no banco ignorando maiúsculas/minúsculas
             cursor.execute(
                 "SELECT * FROM usuarios WHERE LOWER(usuario)=?",
                 (user_clean,)
